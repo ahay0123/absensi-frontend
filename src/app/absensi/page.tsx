@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Html5QrcodeScanner } from "html5-qrcode";
 import api from "@/lib/axios";
-import { Camera, MapPin, ScanLine, UserCheck, Loader2 } from "lucide-react";
+import { Camera, MapPin, ScanLine, UserCheck, Loader2, ChevronLeft } from "lucide-react";
+import Link from "next/link";
 
 export default function AbsensiPage() {
   const [step, setStep] = useState(1); // 1: Standby, 2: Scan QR, 3: Selfie, 4: Loading/Result
@@ -15,8 +16,9 @@ export default function AbsensiPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null); // Ref untuk mematikan kamera
 
-  // --- EFFECT: Ambil Lokasi saat masuk halaman ---
+  // --- EFFECT: Ambil Lokasi ---
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((pos) => {
@@ -25,7 +27,19 @@ export default function AbsensiPage() {
     }
   }, []);
 
-  // --- LOGIC: Scan QR Code ---
+  // --- LOGIC: Navigasi Kembali (Smart Back) ---
+  const handleBack = () => {
+    if (step === 2) {
+      setStep(1);
+    } else if (step === 3) {
+      // Matikan stream kamera sebelum kembali ke scan QR
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      setStep(2);
+    }
+  };
+
   // --- LOGIC: Scan QR Code ---
   useEffect(() => {
     let scanner: Html5QrcodeScanner | null = null;
@@ -40,23 +54,17 @@ export default function AbsensiPage() {
       scanner.render(
         (decodedText) => {
           setQrData(decodedText);
-
-          // Perbaikan di sini: Pastikan scanner dibersihkan dulu
           if (scanner) {
-            scanner
-              .clear()
-              .then(() => {
-                setStep(3);
-                startCamera(); // Panggil fungsi async tanpa mengembalikan valuenya
-              })
-              .catch((err) => console.error("Failed to clear scanner", err));
+            scanner.clear().then(() => {
+              setStep(3);
+              startCamera();
+            }).catch((err) => console.error("Failed to clear scanner", err));
           }
         },
-        (error) => {},
+        (error) => { },
       );
     }
 
-    // Cleanup function
     return () => {
       if (scanner) {
         scanner.clear().catch((err) => console.error("Cleanup failed", err));
@@ -66,9 +74,14 @@ export default function AbsensiPage() {
 
   // --- LOGIC: Kamera Selfie ---
   const startCamera = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      streamRef.current = stream; // Simpan stream ke ref
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      alert("Gagal mengakses kamera: " + err);
     }
   };
 
@@ -78,6 +91,11 @@ export default function AbsensiPage() {
       canvasRef.current.width = videoRef.current.videoWidth;
       canvasRef.current.height = videoRef.current.videoHeight;
       context?.drawImage(videoRef.current, 0, 0);
+
+      // Matikan kamera setelah foto diambil
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
 
       canvasRef.current.toBlob((blob) => {
         if (blob) sendAttendance(blob);
@@ -91,7 +109,7 @@ export default function AbsensiPage() {
     setStep(4);
 
     const formData = new FormData();
-    formData.append("schedule_id", "1"); // Sementara hardcoded ID jadwal
+    formData.append("schedule_id", "1");
     formData.append("qr_payload", qrData || "");
     formData.append("photo", photoBlob, "selfie.jpg");
     formData.append("lat_check", location?.lat.toString() || "");
@@ -101,7 +119,7 @@ export default function AbsensiPage() {
     try {
       const response = await api.post("/test-absen", formData);
       alert("Absensi Berhasil: " + response.data.message);
-      window.location.reload(); // Reset kembali
+      window.location.href = "/"; // Gunakan navigasi balik ke dashboard
     } catch (err: any) {
       alert("Gagal: " + (err.response?.data?.message || "Terjadi kesalahan"));
       setStep(1);
@@ -112,31 +130,44 @@ export default function AbsensiPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center p-6 text-slate-800">
-      {/* Minimalist Header */}
+
+      {/* Header dengan Tombol Back Dinamis */}
       <div className="w-full max-w-md flex justify-between items-center mb-10 mt-4">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">
-            Presensi Kehadiran
-          </h1>
-          <p className="text-sm text-slate-400">PWA Guru v1.0</p>
+        <div className="flex items-center gap-4">
+          {step > 1 && step < 4 && (
+            <button
+              onClick={handleBack}
+              className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center active:scale-90 transition-all"
+            >
+              <ChevronLeft className="w-6 h-6 text-slate-600" />
+            </button>
+          )}
+          {step === 1 && (
+            <Link href="/" className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center active:scale-90 transition-all">
+              <ChevronLeft className="w-6 h-6 text-slate-600" />
+            </Link>
+          )}
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">
+              {step === 3 ? "Verifikasi Wajah" : "Presensi Kehadiran"}
+            </h1>
+            <p className="text-sm text-slate-400">PWA Guru v1.0</p>
+          </div>
         </div>
-        <div
-          className={`p-2 rounded-full ${location ? "bg-green-50" : "bg-red-50"}`}
-        >
-          <MapPin
-            className={`w-5 h-5 ${location ? "text-green-500" : "text-red-500"}`}
-          />
+        <div className={`p-2 rounded-full ${location ? "bg-green-50" : "bg-red-50"}`}>
+          <MapPin className={`w-5 h-5 ${location ? "text-green-500" : "text-red-500"}`} />
         </div>
       </div>
 
       <div className="w-full max-w-md bg-slate-50 rounded-[2.5rem] p-4 border border-slate-100 shadow-2xl shadow-slate-200">
+
         {/* STEP 1: Tombol Utama */}
         {step === 1 && (
           <div className="py-10 flex flex-col items-center text-center">
             <div className="w-24 h-24 bg-blue-600 rounded-3xl flex items-center justify-center rotate-3 shadow-xl shadow-blue-200 mb-8">
               <ScanLine className="w-12 h-12 text-white -rotate-3" />
             </div>
-            <h2 className="text-2xl font-bold mb-2">Selamat Pagi!</h2>
+            <h2 className="text-2xl font-bold mb-2 text-slate-800">Selamat Pagi!</h2>
             <p className="text-slate-500 mb-10 px-6">
               Silakan tap tombol di bawah untuk memindai QR Code di ruangan.
             </p>
@@ -152,19 +183,10 @@ export default function AbsensiPage() {
         {/* STEP 2: Scanner QR */}
         {step === 2 && (
           <div className="p-2">
-            <div
-              id="reader"
-              className="overflow-hidden rounded-3xl bg-black aspect-square"
-            ></div>
+            <div id="reader" className="overflow-hidden rounded-3xl bg-black aspect-square"></div>
             <p className="text-center mt-6 font-medium text-slate-600 italic">
               Mencari kode QR...
             </p>
-            <button
-              onClick={() => setStep(1)}
-              className="w-full mt-4 text-slate-400 text-sm"
-            >
-              Kembali
-            </button>
           </div>
         )}
 
@@ -176,14 +198,14 @@ export default function AbsensiPage() {
                 ref={videoRef}
                 autoPlay
                 playsInline
-                className="w-full h-full object-cover scale-x-[-1] bg-slate-200"
+                className="w-full h-full object-cover scale-x-[-1]"
               />
               <div className="absolute inset-0 border-[12px] border-white/20 rounded-3xl pointer-events-none"></div>
             </div>
             <canvas ref={canvasRef} className="hidden" />
-            <h3 className="mt-6 font-bold text-lg">Verifikasi Wajah</h3>
-            <p className="text-slate-400 text-sm mb-8">
-              Posisikan wajah Anda di tengah layar
+            <h3 className="mt-6 font-bold text-lg">Siap untuk Foto?</h3>
+            <p className="text-slate-400 text-sm mb-8 text-center px-4">
+              Wajah harus berada di dalam bingkai dan terlihat jelas.
             </p>
             <button
               onClick={takeSelfie}
