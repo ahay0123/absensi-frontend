@@ -13,8 +13,7 @@ import {
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 
-export default function AbsensiPage() {
-  const params = useParams();
+const AbsensiPage = ({ params }: { params: { id: string } }) => {
   const router = useRouter();
 
   // DEBUG 1: Cek Parameter URL
@@ -238,3 +237,6 @@ export default function AbsensiPage() {
     </div>
   );
 }
+
+
+export default AbsensiPage
