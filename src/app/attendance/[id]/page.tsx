@@ -16,6 +16,10 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
 export default function AbsensiPage() {
+  useEffect(() => {
+    alert("Halaman Presensi Berhasil Dimuat!");
+  }, []);
+
   const params = useParams();
   const router = useRouter();
   const scheduleId = params?.id;
