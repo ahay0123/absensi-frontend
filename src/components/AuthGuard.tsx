@@ -7,44 +7,39 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [authorized, setAuthorized] = useState(false);
+  const [loading, setLoading] = useState(true); // Tambahkan state loading
 
   useEffect(() => {
     const checkAuth = () => {
-      const token = localStorage.getItem("token");
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const path = pathname;
 
-      // 1. Tentukan kategori halaman
       const isPublicPath = path === "/login" || path === "/register";
-      // Menggunakan .startsWith untuk mengizinkan rute dinamis
+      // Gunakan regex atau startsWith yang lebih aman
       const isProtectedPath =
         path === "/" ||
         path.startsWith("/presensi-guru") ||
+        path.startsWith("/attendance") || // Jaga-jaga kalau folder belum berubah
         path.startsWith("/izin");
 
-      console.log("GUARD CHECK:", { path, hasToken: !!token, isProtectedPath });
-
       if (!token && isProtectedPath) {
-        // Kasus: Tidak login tapi akses halaman dalam
-        console.log("GUARD: No token, redirect to login");
         setAuthorized(false);
         router.replace("/login");
       } else if (token && isPublicPath) {
-        // Kasus: Sudah login tapi akses halaman login/regis
-        console.log("GUARD: Already logged in, redirect to dashboard");
+        // HANYA redirect jika benar-benar sedang di halaman login/regis
         router.replace("/");
       } else {
-        // Kasus: Akses diizinkan
-        console.log("GUARD: Access Granted");
         setAuthorized(true);
       }
+      setLoading(false); // Selesai mengecek
     };
 
     checkAuth();
   }, [pathname, router]);
 
-  // JANGAN gunakan spinner jika sebenarnya user sudah authorized
-  // Ini untuk mencegah 'flicker' yang membuat navigasi terasa gagal
-  if (!authorized && !["/login", "/register"].includes(pathname)) {
+  // Jika masih loading atau belum authorized (dan bukan public path), tampilkan loader
+  if ((loading || !authorized) && !["/login", "/register"].includes(pathname)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white">
         <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mb-4" />
