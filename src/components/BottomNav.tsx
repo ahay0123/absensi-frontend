@@ -39,7 +39,7 @@ export default function BottomNav() {
 
       {/* Floating Scan Button */}
       <Link
-        href="/absensi"
+        href="/presensi"
         className="absolute -top-10 left-1/2 -translate-x-1/2 w-20 h-20 bg-indigo-600 rounded-full border-[8px] border-slate-50 flex items-center justify-center shadow-lg shadow-indigo-200 active:scale-90 transition-all"
       >
         <div className="flex flex-col items-center">

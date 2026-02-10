@@ -193,7 +193,7 @@ export default function Dashboard() {
                         </span>
                       </div>
                       <Link
-                        href={`/absensi/${schedule.id}`}
+                        href={`/presensi/${schedule.id}`}
                         className="bg-white text-indigo-600 text-[10px] font-bold px-4 py-2 rounded-xl shadow-sm active:scale-90 transition-all"
                       >
                         Mulai Absensi
