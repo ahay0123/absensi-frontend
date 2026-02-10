@@ -28,7 +28,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         router.replace("/login");
       } else if (token && isPublicPath) {
         // HANYA redirect jika benar-benar sedang di halaman login/regis
-        router.replace("/");
       } else {
         setAuthorized(true);
       }
