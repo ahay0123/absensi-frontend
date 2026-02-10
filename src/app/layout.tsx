@@ -13,14 +13,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  // Sembunyikan Navigasi jika sedang di halaman absensi (kamera)
-  const isAbsensiPage = pathname === "/absensi";
+
+  // Perbaikan: Cek apakah path dimulai dengan /absensi atau /presensi
+  const isAbsensiPage =
+    pathname.startsWith("/absensi") || pathname.startsWith("/presensi");
 
   return (
     <html lang="id">
       <body className={`${jakarta.className} bg-slate-50`}>
         <AuthGuard>
           {children}
+          {/* Navigasi hanya muncul jika BUKAN di halaman kamera */}
           {!isAbsensiPage && <BottomNav />}
         </AuthGuard>
       </body>
