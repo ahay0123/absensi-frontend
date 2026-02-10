@@ -16,7 +16,7 @@ export default function RootLayout({
 
   // Perbaikan: Cek apakah path dimulai dengan /absensi atau /presensi
   const isAbsensiPage =
-    pathname.startsWith("/presensi") || pathname.startsWith("/presensi");
+    pathname.startsWith("/presensi") || pathname.startsWith("/absensi");
 
   return (
     <html lang="id">
