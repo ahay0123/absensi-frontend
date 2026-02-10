@@ -13,8 +13,10 @@ import {
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 
-const AbsensiPage = ({ params }: { params: { id: string } }) => {
+export default function AbsensiPage() {
+  const params = useParams();
   const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
 
   // DEBUG 1: Cek Parameter URL
   const scheduleId = params?.id;
@@ -37,8 +39,9 @@ const AbsensiPage = ({ params }: { params: { id: string } }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // DEBUG 2: Cek Mount Status
+  // DEBUG 2: Cek Mount Status & Hydration
   useEffect(() => {
+    setIsMounted(true);
     console.log(
       "DEBUG [2]: Komponen AbsensiPage Berhasil Mount (Muncul di Layar)",
     );
@@ -147,6 +150,18 @@ const AbsensiPage = ({ params }: { params: { id: string } }) => {
     }
   };
 
+  // Prevent rendering until client-side hydration is complete
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-600">Memuat...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-white flex flex-col items-center p-6 text-slate-800">
       <div className="w-full max-w-md flex justify-between items-center mb-10 mt-4">
@@ -237,6 +252,3 @@ const AbsensiPage = ({ params }: { params: { id: string } }) => {
     </div>
   );
 }
-
-
-export default AbsensiPage
