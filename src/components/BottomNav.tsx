@@ -38,17 +38,28 @@ export default function BottomNav() {
       })}
 
       {/* Floating Scan Button */}
-      <Link
-        href="/presensi"
+      {/* Floating Scan Button */}
+      {/* Kita ubah Link-nya atau buat dia hanya dekorasi jika sedang di dashboard */}
+      <button
+        onClick={() => {
+          // Jika diklik, arahkan ke home atau biarkan user pilih jadwal di dashboard
+          if (pathname !== "/") {
+            window.location.href = "/";
+          } else {
+            alert(
+              "Silahkan pilih mata pelajaran pada jadwal di bawah untuk mulai absen",
+            );
+          }
+        }}
         className="absolute -top-10 left-1/2 -translate-x-1/2 w-20 h-20 bg-indigo-600 rounded-full border-[8px] border-slate-50 flex items-center justify-center shadow-lg shadow-indigo-200 active:scale-90 transition-all"
       >
         <div className="flex flex-col items-center">
           <Scan className="text-white w-8 h-8" />
           <span className="text-[8px] text-white font-bold mt-1 uppercase tracking-tighter">
-            Scan QR
+            Absen
           </span>
         </div>
-      </Link>
+      </button>
     </div>
   );
 }

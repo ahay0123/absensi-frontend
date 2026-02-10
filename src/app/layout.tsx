@@ -14,17 +14,25 @@ export default function RootLayout({
 }) {
   const pathname = usePathname();
 
-  // Perbaikan: Cek apakah path dimulai dengan /absensi atau /presensi
-  const isAbsensiPage =
-    pathname.startsWith("/attendance") || pathname.startsWith("/presensi");
+  // Daftar rute yang TIDAK boleh menampilkan BottomNav (Halaman Fullscreen)
+  const hideNavPaths = ["/login", "/register", "/attendance", "/presensi"];
+
+  // Cek apakah halaman saat ini harus menyembunyikan navigasi
+  const shouldHideNav = hideNavPaths.some((path) => pathname.startsWith(path));
 
   return (
     <html lang="id">
-      <body className={`${jakarta.className} bg-slate-50`}>
+      <body className={`${jakarta.className} bg-slate-50 text-slate-900`}>
         <AuthGuard>
-          {children}
-          {/* Navigasi hanya muncul jika BUKAN di halaman kamera */}
-          {!isAbsensiPage && <BottomNav />}
+          {/* Main Content */}
+          <div className="min-h-screen">{children}</div>
+
+          {/* Navigasi bawah hanya muncul jika bukan halaman fullscreen */}
+          {!shouldHideNav && (
+            <div className="fixed bottom-0 left-0 right-0 z-50">
+              <BottomNav />
+            </div>
+          )}
         </AuthGuard>
       </body>
     </html>
