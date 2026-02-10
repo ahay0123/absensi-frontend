@@ -18,7 +18,7 @@ import { useParams, useRouter } from "next/navigation";
 export default function AbsensiPage() {
   const params = useParams();
   const router = useRouter();
-  const scheduleId = params.id;
+  const scheduleId = params?.id;
 
   const [step, setStep] = useState(1); // 1: Standby, 2: Scan QR, 3: Selfie, 4: Loading/Result
   const [location, setLocation] = useState<{
