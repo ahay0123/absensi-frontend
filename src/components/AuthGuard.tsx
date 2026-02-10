@@ -11,21 +11,30 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkAuth = () => {
       const token = localStorage.getItem("token");
-      const publicPaths = ["/login", "/register"];
-      const path = pathname.split("?")[0];
+      const path = pathname;
 
-      // Cek apakah halaman saat ini adalah publik
-      const isPublicPath = publicPaths.includes(path);
+      // 1. Tentukan kategori halaman
+      const isPublicPath = path === "/login" || path === "/register";
+      // Menggunakan .startsWith untuk mengizinkan rute dinamis
+      const isProtectedPath =
+        path === "/" ||
+        path.startsWith("/attendance") ||
+        path.startsWith("/izin");
 
-      if (!token && !isPublicPath) {
-        // Jika tidak ada token dan bukan halaman login, tendang ke login
+      console.log("GUARD CHECK:", { path, hasToken: !!token, isProtectedPath });
+
+      if (!token && isProtectedPath) {
+        // Kasus: Tidak login tapi akses halaman dalam
+        console.log("GUARD: No token, redirect to login");
         setAuthorized(false);
-        router.replace("/login"); // Gunakan replace agar tidak bisa 'back'
+        router.replace("/login");
       } else if (token && isPublicPath) {
-        // Jika sudah login tapi coba buka halaman login, lempar ke dashboard
+        // Kasus: Sudah login tapi akses halaman login/regis
+        console.log("GUARD: Already logged in, redirect to dashboard");
         router.replace("/");
       } else {
-        // Izinkan akses
+        // Kasus: Akses diizinkan
+        console.log("GUARD: Access Granted");
         setAuthorized(true);
       }
     };
