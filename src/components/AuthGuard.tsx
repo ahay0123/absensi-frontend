@@ -15,23 +15,23 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const path = pathname;
 
-      const isPublicPath = path === "/login" || path === "/register";
-      // Gunakan regex atau startsWith yang lebih aman
+      // Halaman yang butuh login
       const isProtectedPath =
         path === "/" ||
         path.startsWith("/presensi-guru") ||
-        path.startsWith("/attendance") || // Jaga-jaga kalau folder belum berubah
+        path.startsWith("/attendance") ||
         path.startsWith("/izin");
 
       if (!token && isProtectedPath) {
+        // Jika tidak ada token dan mencoba masuk ke halaman dalam -> ke Login
         setAuthorized(false);
         router.replace("/login");
-      } else if (token && isPublicPath) {
-        // HANYA redirect jika benar-benar sedang di halaman login/regis
       } else {
+        // Jika ada token, atau sedang di halaman publik -> IZINKAN
+        // KITA HAPUS router.replace("/") DI SINI agar tidak ada "mental" balik
         setAuthorized(true);
       }
-      setLoading(false); // Selesai mengecek
+      setLoading(false);
     };
 
     checkAuth();
