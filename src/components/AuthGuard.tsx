@@ -18,7 +18,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       // Menggunakan .startsWith untuk mengizinkan rute dinamis
       const isProtectedPath =
         path === "/" ||
-        path.startsWith("/attendance") ||
+        path.startsWith("/presensi-guru") ||
         path.startsWith("/izin");
 
       console.log("GUARD CHECK:", { path, hasToken: !!token, isProtectedPath });
