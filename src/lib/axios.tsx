@@ -1,14 +1,21 @@
 import axios from "axios";
 
 const api = axios.create({
-  // Jika menjalankan Laravel di komputer yang sama (Localhost)
-  // Gunakan http://127.0.0.1:8000 atau IP laptop Anda
   baseURL: "https://gemmaceous-birectangular-sunshine.ngrok-free.dev/api",
   headers: {
-    Accept: "application/json",
-    "Content-Type": "multipart/form-data", // Penting untuk upload foto
-    'ngrok-skip-browser-warning': true, 
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "ngrok-skip-browser-warning": "69420",  
   },
+});
+
+// Otomatis tempel token di setiap request
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 export default api;

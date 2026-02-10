@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 export default function BottomNav() {
   const pathname = usePathname();
 
+  if (pathname === "/login" || pathname === "/register") return null;
+
   const navs = [
     { name: "Home", icon: Home, path: "/" },
     { name: "History", icon: History, path: "/history" },
