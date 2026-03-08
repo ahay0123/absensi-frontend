@@ -1,5 +1,5 @@
 @import "tailwindcss";
-
+@custom-variant dark (&:is(.dark *));
 @theme {
   --font-display: "Inter", sans-serif;
   /* Soft, accessible blue (Blue 600) */
