@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Bell,
   MapPin,
@@ -17,16 +17,110 @@ import BottomNav from "@/components/BottomNav";
 import Link from "next/link";
 import api from "@/lib/axios";
 
+interface UserLocation {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+}
+
 export default function Dashboard() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [isInRadius, setIsInRadius] = useState<boolean | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const hasFetched = useRef(false); // Prevent double fetch
+
+  // Fungsi untuk menghitung jarak antar 2 koordinat (Haversine formula)
+  const calculateDistance = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number => {
+    const R = 6371000; // Radius bumi dalam meter
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // jarak dalam meter
+  };
+
+  // Request geolocation dari browser
+  const requestLocation = () => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const loc: UserLocation = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+          };
+          setUserLocation(loc);
+          setLocationError(null);
+
+          // Jika data sekolah sudah ada, cek apakah user di radius
+          if (data?.school) {
+            const distance = calculateDistance(
+              loc.latitude,
+              loc.longitude,
+              parseFloat(data.school.latitude),
+              parseFloat(data.school.longitude),
+            );
+            const radius = data.school.radius_meters || 100;
+            setIsInRadius(distance <= radius);
+          }
+        },
+        (error) => {
+          setLocationError("Izin lokasi ditolak");
+          console.error("Geolocation error:", error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        },
+      );
+    } else {
+      setLocationError("Browser tidak support Geolocation");
+    }
+  };
 
   useEffect(() => {
-    // 1. Ambil data dari API
-    const fetchDashboard = async () => {
+    // 0. Cek role — redirect kepala sekolah / admin ke halaman mereka
+    const userStr = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+    if (userStr) {
       try {
-        const response = await api.get("/dashboard-data");
+        const userObj = JSON.parse(userStr);
+        const rawRole = userObj?.role || '';
+        const role = rawRole.toLowerCase().replace(/[\s_]+/g, '-');
+        if (role === 'kepala-sekolah' || role === 'kepsek') {
+          window.location.href = '/kepala-sekolah';
+          return;
+        } else if (role === 'admin') {
+          window.location.href = '/admin';
+          return;
+        }
+      } catch { /* ignore */ }
+    }
+
+    // 1. Ambil data dari API (hanya sekali)
+    const fetchDashboard = async () => {
+      // Skip jika sudah pernah fetch
+      if (hasFetched.current) return;
+      hasFetched.current = true;
+
+      try {
+        // Tambahkan timestamp agar browser tidak menyimpan cache (selalu ambil data terbaru)
+        const response = await api.get(
+          `/dashboard-data?t=${new Date().getTime()}`,
+        );
         // Log untuk debug di console browser (F12)
         console.log("Response Backend:", response.data);
         setData(response.data);
@@ -44,8 +138,25 @@ export default function Dashboard() {
       setCurrentTime(new Date());
     }, 1000);
 
+    // 3. Request lokasi saat component mount
+    requestLocation();
+
     return () => clearInterval(timer);
-  }, []);
+  }, []); // Empty dependency array - hanya run sekali
+
+  // Re-check radius ketika data atau user location berubah
+  useEffect(() => {
+    if (userLocation && data?.school) {
+      const distance = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        parseFloat(data.school.latitude),
+        parseFloat(data.school.longitude),
+      );
+      const radius = data.school.radius_meters || 100;
+      setIsInRadius(distance <= radius);
+    }
+  }, [userLocation, data?.school]);
 
   // Format waktu sekarang ke HH:mm:ss untuk perbandingan akurat dengan format 07:00:00
   const nowStr =
@@ -75,7 +186,15 @@ export default function Dashboard() {
             />
           </div>
           <div>
-            <p className="text-slate-400 text-xs font-medium">Selamat Pagi,</p>
+            <p className="text-slate-400 text-xs font-medium">
+              {currentTime.getHours() < 12
+                ? "Selamat Pagi ☀️,"
+                : currentTime.getHours() < 15
+                  ? "Selamat Siang 🌤️,"
+                  : currentTime.getHours() < 18
+                    ? "Selamat Sore 🌅,"
+                    : "Selamat Malam 🌙,"}
+            </p>
             <h1 className="text-slate-800 font-bold text-lg leading-tight">
               {data?.user?.name || "Guru"}
             </h1>
@@ -92,25 +211,68 @@ export default function Dashboard() {
       {/* --- LIVE LOCATION CARD --- */}
       <div className="px-6 mb-8">
         <div className="bg-white rounded-[2.5rem] p-6 shadow-xl shadow-slate-200/50 border border-slate-50 flex items-center justify-between">
-          <div className="space-y-2">
+          <div className="space-y-2 flex-1">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-[10px] font-bold text-green-500 uppercase tracking-widest">
-                Live Location
+              <div
+                className={`w-2 h-2 ${isInRadius ? "bg-green-500 animate-pulse" : "bg-red-500"
+                  } rounded-full`}
+              ></div>
+              <span
+                className={`text-[10px] font-bold uppercase tracking-widest ${isInRadius ? "text-green-500" : "text-red-500"
+                  }`}
+              >
+                {isInRadius === null
+                  ? "Checking..."
+                  : isInRadius
+                    ? "Di Radius Sekolah ✓"
+                    : "Diluar Radius"}
               </span>
             </div>
             <h2 className="text-slate-800 font-bold">
               {data?.school?.name || "Sekolah"}
             </h2>
             <p className="text-slate-400 text-[10px]">
-              Presensi di radius {data?.school?.radius_meters || 100}m dari
-              pusat
+              {userLocation && isInRadius !== null ? (
+                <>
+                  Radius {data?.school?.radius_meters || 100}m
+                  {userLocation && (
+                    <span className="ml-2">
+                      (Akurasi: ±{Math.round(userLocation.accuracy)}m)
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  Presensi di radius {data?.school?.radius_meters || 100}m dari
+                  pusat
+                </>
+              )}
             </p>
           </div>
-          <div className="w-20 h-20 bg-slate-100 rounded-2xl overflow-hidden grayscale opacity-50 flex items-center justify-center">
-            <MapPin className="text-slate-300 w-8 h-8" />
-          </div>
+          <button
+            onClick={requestLocation}
+            className={`w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center transition-all active:scale-90 ${isInRadius
+                ? "bg-green-50"
+                : isInRadius === null
+                  ? "bg-slate-100"
+                  : "bg-red-50"
+              }`}
+          >
+            <MapPin
+              className={`w-8 h-8 ${isInRadius
+                  ? "text-green-500"
+                  : isInRadius === null
+                    ? "text-slate-300"
+                    : "text-red-500"
+                }`}
+            />
+          </button>
         </div>
+        {locationError && (
+          <p className="text-[10px] text-red-500 mt-2 font-medium">
+            {locationError} - Tap ikon lokasi untuk coba lagi
+          </p>
+        )}
       </div>
 
       {/* --- DYNAMIC SCHEDULE SECTION --- */}
@@ -133,17 +295,15 @@ export default function Dashboard() {
               return (
                 <div
                   key={schedule.id}
-                  className={`transition-all duration-500 rounded-[2rem] p-5 border ${
-                    isActive
+                  className={`transition-all duration-500 rounded-[2rem] p-5 border ${isActive
                       ? "bg-indigo-600 border-indigo-600 shadow-xl shadow-indigo-200 text-white scale-[1.02] z-10 relative"
                       : "bg-white border-slate-100 text-slate-800"
-                  } ${isPast ? "opacity-40 grayscale" : "opacity-100"}`}
+                    } ${isPast ? "opacity-40 grayscale" : "opacity-100"}`}
                 >
                   <div className="flex items-center gap-4">
                     <div
-                      className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                        isActive ? "bg-white/20 shadow-inner" : "bg-indigo-50"
-                      }`}
+                      className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${isActive ? "bg-white/20 shadow-inner" : "bg-indigo-50"
+                        }`}
                     >
                       <BookOpen
                         className={`w-6 h-6 ${isActive ? "text-white" : "text-indigo-600"}`}
@@ -154,9 +314,8 @@ export default function Dashboard() {
                       <div className="flex justify-between items-start gap-2">
                         <div className="truncate">
                           <p
-                            className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${
-                              isActive ? "text-indigo-100" : "text-slate-400"
-                            }`}
+                            className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isActive ? "text-indigo-100" : "text-slate-400"
+                              }`}
                           >
                             {isActive
                               ? " Sedang Berlangsung"

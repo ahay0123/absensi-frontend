@@ -1,38 +1,34 @@
 "use client";
 import { useParams, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ArrowLeft,
   Clock,
   MapPin,
   BookOpen,
-  Users,
+  Camera,
   CheckCircle2,
   Loader2,
   QrCode,
-  X,
+  AlertCircle,
+  ScanLine,
 } from "lucide-react";
 import api from "@/lib/axios";
+import Alert, { useAlert } from "@/components/Alert";
 
 export const dynamic = "force-dynamic";
 
-interface Student {
-  id: number;
-  name: string;
-  nis: string;
-  attended?: boolean;
-}
-
 interface Schedule {
   id: number;
-  subject: {
-    name: string;
-  };
   room: {
     name: string;
+    qr_payload?: string;
+    latitude?: number;
+    longitude?: number;
   };
   start_time: string;
   end_time: string;
+  day: string;
 }
 
 export default function AbsensiPage() {
@@ -41,23 +37,33 @@ export default function AbsensiPage() {
   const scheduleId = params?.id;
 
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [step, setStep] = useState(1); // 1: Info, 2: QR Scan, 3: Selfie, 4: Submit
   const [schedule, setSchedule] = useState<Schedule | null>(null);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [showScanner, setShowScanner] = useState(false);
+  const [qrData, setQrData] = useState<string | null>(null);
+  const [location, setLocation] = useState<{
+    lat: number;
+    long: number;
+    accuracy: number;
+  } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const { alert, showAlert, hideAlert } = useAlert();
 
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  // Fetch schedule data
   useEffect(() => {
     const fetchScheduleData = async () => {
       try {
         console.log("📚 Fetching schedule data for ID:", scheduleId);
         const response = await api.get(`/schedules/${scheduleId}`);
         setSchedule(response.data.schedule);
-        setStudents(response.data.students || []);
         console.log("✅ Schedule loaded:", response.data);
       } catch (err) {
         console.error("❌ Error loading schedule:", err);
-        alert("Gagal memuat data jadwal");
-        router.push("/");
+        showAlert("error", "Gagal memuat data jadwal");
+        setTimeout(() => router.push("/"), 2000);
       } finally {
         setLoading(false);
       }
@@ -68,38 +74,146 @@ export default function AbsensiPage() {
     }
   }, [scheduleId, router]);
 
-  const toggleAttendance = (studentId: number) => {
-    setStudents((prev) =>
-      prev.map((student) =>
-        student.id === studentId
-          ? { ...student, attended: !student.attended }
-          : student
-      )
-    );
+  // Get GPS location
+  useEffect(() => {
+    if (navigator.geolocation) {
+      console.log("📍 Getting GPS location...");
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setLocation({
+            lat: pos.coords.latitude,
+            long: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+          });
+          console.log("✅ Location obtained:", pos.coords);
+        },
+        (err) => {
+          console.error("❌ GPS Error:", err.message);
+          showAlert("error", "Gagal mendapatkan lokasi GPS. Pastikan izin lokasi diaktifkan.");
+        },
+        { enableHighAccuracy: true }
+      );
+    }
+  }, []);
+
+  // Initialize QR Scanner when step changes to 2
+  useEffect(() => {
+    if (step === 2) {
+      const initQrScanner = async () => {
+        try {
+          // Dynamically import html5-qrcode
+          const { Html5QrcodeScanner } = await import("html5-qrcode");
+
+          const scanner = new Html5QrcodeScanner(
+            "qr-reader",
+            {
+              fps: 10,
+              qrbox: { width: 250, height: 250 },
+            },
+            false
+          );
+
+          scanner.render(
+            (decodedText) => {
+              console.log("✅ QR Code scanned:", decodedText);
+              setQrData(decodedText);
+              scanner.clear();
+              setStep(3);
+              startCamera();
+            },
+            (error) => {
+              // Ignore frequent scanning errors
+              // console.warn("QR scan error:", error);
+            }
+          );
+
+          return () => {
+            scanner.clear().catch(() => { });
+          };
+        } catch (err) {
+          console.error("❌ QR Scanner Error:", err);
+          showAlert("warning", "Gagal memulai QR scanner. Gunakan tombol Lewati untuk testing.");
+        }
+      };
+
+      initQrScanner();
+    }
+  }, [step]);
+
+  // Camera functions
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) videoRef.current.srcObject = stream;
+      console.log("📷 Camera started");
+    } catch (err) {
+      console.error("❌ Camera Error:", err);
+      showAlert("error", "Gagal mengakses kamera. Pastikan izin kamera diaktifkan.");
+    }
   };
 
-  const handleSubmit = async () => {
-    const attendedStudents = students
-      .filter((s) => s.attended)
-      .map((s) => s.id);
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      console.log("📷 Camera stopped");
+    }
+  };
 
-    if (attendedStudents.length === 0) {
-      alert("Pilih setidaknya satu siswa yang hadir");
+  const takeSelfie = () => {
+    if (canvasRef.current && videoRef.current) {
+      const context = canvasRef.current.getContext("2d");
+      canvasRef.current.width = videoRef.current.videoWidth;
+      canvasRef.current.height = videoRef.current.videoHeight;
+      context?.scale(-1, 1);
+      context?.drawImage(videoRef.current, -canvasRef.current.width, 0);
+      stopCamera();
+
+      canvasRef.current.toBlob(
+        (blob) => {
+          if (blob) submitAttendance(blob);
+        },
+        "image/jpeg",
+        0.8
+      );
+    }
+  };
+
+  const submitAttendance = async (photoBlob: Blob) => {
+    if (!location) {
+      showAlert("error", "Lokasi GPS belum tersedia. Tunggu sebentar dan coba lagi.");
+      setStep(3);
+      startCamera();
       return;
     }
 
     setSubmitting(true);
+    setStep(4);
+
+    const formData = new FormData();
+    formData.append("schedule_id", String(scheduleId));
+    formData.append("qr_payload", qrData || "");
+    formData.append("photo", photoBlob, "selfie.jpg");
+    formData.append("lat_check", location.lat.toString());
+    formData.append("long_check", location.long.toString());
+    formData.append("gps_accuracy", location.accuracy.toString());
+
     try {
-      await api.post(`/attendance/${scheduleId}`, {
-        student_ids: attendedStudents,
+      const response = await api.post("/test-absen", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
-      alert(`Absensi berhasil! ${attendedStudents.length} siswa hadir.`);
-      router.push("/");
+      console.log("✅ Attendance submitted:", response.data);
+      showAlert("success", response.data.message);
+      setTimeout(() => router.push("/"), 2500);
     } catch (err: any) {
-      console.error("❌ Error submitting attendance:", err);
-      alert(
-        err.response?.data?.message || "Gagal menyimpan absensi. Coba lagi."
+      console.error("❌ Submission error:", err.response?.data);
+      showAlert(
+        "error",
+        err.response?.data?.message || "Gagal mengirim absensi. Coba lagi."
       );
+      setStep(1); // Reset to start
     } finally {
       setSubmitting(false);
     }
@@ -114,7 +228,16 @@ export default function AbsensiPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 pb-8">
+    <main className="min-h-screen bg-slate-50">
+      {/* Alert Component */}
+      {alert && (
+        <Alert
+          type={alert.type}
+          message={alert.message}
+          onClose={hideAlert}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-indigo-600 text-white p-6 rounded-b-[2.5rem] shadow-xl">
         <button
@@ -128,9 +251,7 @@ export default function AbsensiPage() {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <BookOpen className="w-5 h-5" />
-            <h1 className="text-xl font-bold">
-              {schedule?.subject?.name || "Mata Pelajaran"}
-            </h1>
+            <h1 className="text-xl font-bold">Presensi Mengajar</h1>
           </div>
           <div className="flex items-center gap-4 text-indigo-100 text-sm">
             <div className="flex items-center gap-1">
@@ -148,97 +269,81 @@ export default function AbsensiPage() {
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="px-6 py-4 flex gap-3">
-        <button
-          onClick={() => setShowScanner(!showScanner)}
-          className="flex-1 bg-white border-2 border-indigo-600 text-indigo-600 font-bold py-3 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all"
-        >
-          {showScanner ? (
-            <>
-              <X className="w-5 h-5" />
-              Tutup QR
-            </>
-          ) : (
-            <>
-              <QrCode className="w-5 h-5" />
-              Scan QR
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* QR Scanner Placeholder */}
-      {showScanner && (
-        <div className="mx-6 mb-4 bg-slate-800 rounded-2xl p-8 text-center">
-          <QrCode className="w-16 h-16 text-white mx-auto mb-3 opacity-50" />
-          <p className="text-white text-sm font-medium">
-            QR Scanner akan diimplementasikan di sini
-          </p>
-          <p className="text-slate-400 text-xs mt-1">
-            Gunakan daftar manual di bawah untuk saat ini
-          </p>
-        </div>
-      )}
-
-      {/* Student List */}
-      <div className="px-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-slate-800 flex items-center gap-2">
-            <Users className="w-5 h-5 text-indigo-600" />
-            Daftar Siswa ({students.length})
-          </h2>
-          <span className="text-xs text-slate-400 font-medium">
-            {students.filter((s) => s.attended).length} hadir
-          </span>
-        </div>
-
-        <div className="space-y-2">
-          {students.map((student) => (
-            <button
-              key={student.id}
-              onClick={() => toggleAttendance(student.id)}
-              className={`w-full p-4 rounded-2xl border-2 transition-all active:scale-95 flex items-center justify-between ${student.attended
-                  ? "bg-indigo-50 border-indigo-600"
-                  : "bg-white border-slate-100"
-                }`}
-            >
-              <div className="text-left">
-                <p
-                  className={`font-bold text-sm ${student.attended ? "text-indigo-600" : "text-slate-800"}`}
-                >
-                  {student.name}
-                </p>
-                <p className="text-xs text-slate-400">{student.nis}</p>
+      {/* Content */}
+      <div className="p-6">
+        <div className="bg-white rounded-[2.5rem] p-6 shadow-xl border border-slate-100">
+          {/* Step 1: Ready */}
+          {step === 1 && (
+            <div className="py-10 flex flex-col items-center text-center">
+              <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center shadow-lg mb-6">
+                <ScanLine className="w-10 h-10 text-white" />
               </div>
-              {student.attended && (
-                <CheckCircle2 className="w-6 h-6 text-indigo-600" />
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Submit Button */}
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-100">
-        <button
-          onClick={handleSubmit}
-          disabled={submitting || students.filter((s) => s.attended).length === 0}
-          className="w-full bg-indigo-600 text-white font-bold py-5 rounded-2xl shadow-lg shadow-indigo-200 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {submitting ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Menyimpan...
-            </>
-          ) : (
-            <>
-              <CheckCircle2 className="w-5 h-5" />
-              Simpan Absensi ({students.filter((s) => s.attended).length}{" "}
-              Siswa)
-            </>
+              <h2 className="text-xl font-bold text-slate-800 mb-2">Siap Mengajar?</h2>
+              <p className="text-slate-400 text-sm mb-6">
+                Scan QR Code ruangan untuk memulai absensi
+              </p>
+              <button
+                onClick={() => setStep(2)}
+                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold active:scale-95 transition-all shadow-lg shadow-indigo-200"
+              >
+                Mulai Scan QR
+              </button>
+            </div>
           )}
-        </button>
+
+          {/* Step 2: QR Scanner */}
+          {step === 2 && (
+            <div className="space-y-4">
+              <div
+                id="qr-reader"
+                className="aspect-square bg-slate-800 rounded-3xl overflow-hidden"
+              />
+              <p className="text-center text-sm text-slate-500 italic">
+                Arahkan kamera ke QR Code ruangan
+              </p>
+              <button
+                onClick={() => {
+                  setQrData("MANUAL-TEST-QR");
+                  setStep(3);
+                  startCamera();
+                }}
+                className="w-full text-xs text-slate-400 underline py-2"
+              >
+                Lewati Scan (Testing Only)
+              </button>
+            </div>
+          )}
+
+          {/* Step 3: Selfie */}
+          {step === 3 && (
+            <div className="space-y-4">
+              <div className="relative aspect-[3/4] bg-black rounded-3xl overflow-hidden">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-cover scale-x-[-1]"
+                />
+              </div>
+              <canvas ref={canvasRef} className="hidden" />
+              <p className="text-center text-sm text-slate-600 font-medium">
+                Pastikan wajah terlihat jelas
+              </p>
+              <button
+                onClick={takeSelfie}
+                className="mx-auto block w-16 h-16 bg-white border-4 border-indigo-600 rounded-full shadow-lg active:scale-90 transition-all"
+              />
+            </div>
+          )}
+
+          {/* Step 4: Processing */}
+          {step === 4 && (
+            <div className="py-10 text-center">
+              <Loader2 className="w-12 h-12 animate-spin mx-auto text-indigo-600 mb-4" />
+              <p className="font-bold text-slate-800">Memproses absensi...</p>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );

@@ -14,8 +14,8 @@ export default function RootLayout({
 }) {
   const pathname = usePathname();
 
-  // Daftar rute yang TIDAK boleh menampilkan BottomNav (Halaman Fullscreen)
-  const hideNavPaths = ["/login", "/register", "/presensi-guru", "/presensi"];
+  // Daftar rute yang TIDAK boleh menampilkan BottomNav (Halaman Fullscreen / Panel dengan sidebar)
+  const hideNavPaths = ["/login", "/register", "/presensi-guru", "/presensi", "/admin", "/kepala-sekolah"];
 
   // Cek apakah halaman saat ini harus menyembunyikan navigasi
   const shouldHideNav = hideNavPaths.some((path) => pathname.startsWith(path));

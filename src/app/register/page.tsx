@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/axios";
 import Link from "next/link";
+import Alert, { useAlert } from "@/components/Alert";
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -21,6 +22,7 @@ export default function RegisterPage() {
     password_confirmation: "",
   });
   const [loading, setLoading] = useState(false);
+  const { alert, showAlert, hideAlert } = useAlert();
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,12 +35,15 @@ export default function RegisterPage() {
       localStorage.setItem("token", res.data.access_token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
 
-      window.location.href = "/"; // Langsung ke Dashboard
+      showAlert("success", "Registrasi berhasil! Mengalihkan ke dashboard...");
+      setTimeout(() => {
+        window.location.href = "/"; // Langsung ke Dashboard
+      }, 1000);
     } catch (err: any) {
       const errorMsg =
         err.response?.data?.message ||
         "Registrasi Gagal. Cek kembali data Anda.";
-      alert(errorMsg);
+      showAlert("error", errorMsg);
     } finally {
       setLoading(false);
     }
@@ -46,6 +51,15 @@ export default function RegisterPage() {
 
   return (
     <main className="min-h-screen bg-slate-50 flex flex-col justify-center p-8 pb-12">
+      {/* Alert Component */}
+      {alert && (
+        <Alert
+          type={alert.type}
+          message={alert.message}
+          onClose={hideAlert}
+        />
+      )}
+
       <div className="max-w-md mx-auto w-full space-y-8">
         {/* Header Section */}
         <div className="text-center">
@@ -134,7 +148,7 @@ export default function RegisterPage() {
 
           <button
             disabled={loading}
-            className="w-full bg-indigo-600 text-white font-bold py-5 rounded-2xl shadow-lg shadow-indigo-200 active:scale-95 transition-all flex items-center justify-center gap-2 mt-4"
+            className="w-full bg-indigo-600 text-white font-bold py-5 rounded-2xl shadow-lg shadow-indigo-200 active:scale-95 transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
               <Loader2 className="animate-spin w-5 h-5" />

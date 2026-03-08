@@ -1,6 +1,66 @@
-import { ArrowUpRight, CheckCircle, Clock, Calendar } from "lucide-react";
+"use client";
+import { useEffect, useState } from "react";
+import {
+  ArrowUpRight,
+  CheckCircle,
+  Clock,
+  Calendar,
+  Loader2,
+} from "lucide-react";
+import BottomNav from "@/components/BottomNav";
+import api from "@/lib/axios";
+
+interface AttendanceStats {
+  percentage?: number;
+  hadir?: number;
+  terlambat?: number;
+  absen?: number;
+  improvement?: number;
+  weekly_data?: number[];
+}
 
 export default function StatsPage() {
+  const [stats, setStats] = useState<AttendanceStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await api.get("/attendance-stats");
+        setStats(response.data.stats || response.data);
+      } catch (err) {
+        console.error("Error loading stats:", err);
+        setStats({
+          percentage: 0,
+          hadir: 0,
+          terlambat: 0,
+          absen: 0,
+          improvement: 0,
+          weekly_data: [0, 0, 0, 0, 0],
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
+      </div>
+    );
+  }
+
+  const percentage = stats?.percentage || 0;
+  const hadir = stats?.hadir || 0;
+  const terlambat = stats?.terlambat || 0;
+  const absen = stats?.absen || 0;
+  const improvement = stats?.improvement || 0;
+  const weeklyData = stats?.weekly_data || [40, 70, 45, 90, 65];
+
   return (
     <main className="min-h-screen p-6 pb-28 bg-slate-50">
       <h1 className="text-2xl font-bold text-slate-800 mb-6">
@@ -13,10 +73,13 @@ export default function StatsPage() {
           <p className="text-indigo-100 text-sm font-medium">
             Persentase Kehadiran
           </p>
-          <h2 className="text-5xl font-black mt-2">98.5%</h2>
+          <h2 className="text-5xl font-black mt-2">{percentage.toFixed(1)}%</h2>
           <p className="text-indigo-200 text-xs mt-4 flex items-center gap-1">
             <ArrowUpRight className="w-4 h-4 text-green-300" />
-            <span>2.1% lebih baik dari bulan lalu</span>
+            <span>
+              {improvement.toFixed(1)}% {improvement >= 0 ? "lebih" : "kurang"}{" "}
+              baik dari bulan lalu
+            </span>
           </p>
         </div>
         {/* Dekorasi Aksen */}
@@ -26,14 +89,14 @@ export default function StatsPage() {
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
           <CheckCircle className="text-green-500 w-6 h-6 mb-3" />
-          <h4 className="text-2xl font-bold text-slate-800">20</h4>
+          <h4 className="text-2xl font-bold text-slate-800">{hadir}</h4>
           <p className="text-slate-400 text-[10px] font-bold uppercase">
             Hari Hadir
           </p>
         </div>
         <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
           <Clock className="text-orange-500 w-6 h-6 mb-3" />
-          <h4 className="text-2xl font-bold text-slate-800">2</h4>
+          <h4 className="text-2xl font-bold text-slate-800">{terlambat}</h4>
           <p className="text-slate-400 text-[10px] font-bold uppercase">
             Terlambat
           </p>
@@ -47,12 +110,12 @@ export default function StatsPage() {
           <Calendar className="w-4 h-4 text-slate-300" />
         </div>
         <div className="flex items-end justify-between h-32 gap-2 px-2">
-          {/* Dummy Bar Chart */}
-          {[40, 70, 45, 90, 65].map((height, i) => (
+          {/* Dynamic Bar Chart */}
+          {weeklyData.map((height, i) => (
             <div key={i} className="flex-1 flex flex-col items-center gap-2">
               <div
                 className={`w-full rounded-t-lg transition-all duration-500 ${i === 3 ? "bg-indigo-600" : "bg-indigo-100"}`}
-                style={{ height: `${height}%` }}
+                style={{ height: `${Math.max(height, 10)}%` }}
               ></div>
               <span className="text-[10px] font-bold text-slate-400">
                 Min-{i + 1}
@@ -61,6 +124,8 @@ export default function StatsPage() {
           ))}
         </div>
       </div>
+
+      <BottomNav />
     </main>
   );
 }

@@ -3,10 +3,12 @@ import { useState } from "react";
 import { LogIn, Mail, Lock, Loader2 } from "lucide-react";
 import api from "@/lib/axios";
 import Link from "next/link";
+import Alert, { useAlert } from "@/components/Alert";
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
+  const { alert, showAlert, hideAlert } = useAlert();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -15,9 +17,25 @@ export default function LoginPage() {
       const res = await api.post("/login", formData);
       localStorage.setItem("token", res.data.access_token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
-      window.location.href = "/"; // Ke Dashboard
+
+      showAlert("success", "Login berhasil! Mengalihkan...");
+      setTimeout(() => {
+        // Normalisasi role: lowercase + ganti underscore/spasi dengan dash
+        // agar cocok meski format backend berbeda (kepala_sekolah / kepala-sekolah / Kepala Sekolah)
+        const rawRole = res.data.user.role || '';
+        const role = rawRole.toLowerCase().replace(/[\s_]+/g, '-');
+        console.log('Login Role (raw):', rawRole, '→ normalized:', role);
+        if (role === 'admin') {
+          window.location.href = "/admin";
+        } else if (role === 'kepala-sekolah' || role === 'kepsek') {
+          window.location.href = "/kepala-sekolah";
+        } else {
+          window.location.href = "/"; // Dashboard Guru
+        }
+      }, 1000);
     } catch (err: any) {
-      alert(err.response?.data?.message || "Login Gagal");
+      const errorMessage = err.response?.data?.message || "Login Gagal. Silakan coba lagi.";
+      showAlert("error", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -25,6 +43,15 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen bg-slate-50 flex flex-col justify-center p-8">
+      {/* Alert Component */}
+      {alert && (
+        <Alert
+          type={alert.type}
+          message={alert.message}
+          onClose={hideAlert}
+        />
+      )}
+
       <div className="max-w-md mx-auto w-full space-y-8">
         <div className="text-center">
           <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center mx-auto rotate-3 shadow-xl shadow-indigo-200 mb-6">
@@ -47,6 +74,7 @@ export default function LoginPage() {
                 setFormData({ ...formData, email: e.target.value })
               }
               required
+              disabled={loading}
             />
           </div>
           <div className="relative">
@@ -59,11 +87,12 @@ export default function LoginPage() {
                 setFormData({ ...formData, password: e.target.value })
               }
               required
+              disabled={loading}
             />
           </div>
           <button
             disabled={loading}
-            className="w-full bg-indigo-600 text-white font-bold py-5 rounded-2xl shadow-lg shadow-indigo-200 active:scale-95 transition-all flex items-center justify-center gap-2"
+            className="w-full bg-indigo-600 text-white font-bold py-5 rounded-2xl shadow-lg shadow-indigo-200 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
               <Loader2 className="animate-spin w-5 h-5" />
