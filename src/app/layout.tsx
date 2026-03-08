@@ -4,6 +4,7 @@ import "./globals.css";
 import BottomNav from "@/components/BottomNav";
 import { usePathname } from "next/navigation";
 import AuthGuard from "@/components/AuthGuard";
+import { useEffect } from "react";
 
 const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"] });
 
@@ -20,9 +21,27 @@ export default function RootLayout({
   // Cek apakah halaman saat ini harus menyembunyikan navigasi
   const shouldHideNav = hideNavPaths.some((path) => pathname.startsWith(path));
 
+  // Handle Dark Mode
+  useEffect(() => {
+    const handleDarkMode = () => {
+      const isDark = localStorage.getItem("dark_mode") === "true";
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    };
+
+    handleDarkMode();
+
+    // Listen for custom event to trigger dark mode changes without reloading
+    window.addEventListener('darkModeToggled', handleDarkMode);
+    return () => window.removeEventListener('darkModeToggled', handleDarkMode);
+  }, []);
+
   return (
     <html lang="id">
-      <body className={`${jakarta.className} bg-slate-50 text-slate-900`}>
+      <body className={`${jakarta.className} bg-slate-50 text-slate-900 transition-colors duration-300 dark:bg-slate-900 dark:text-slate-100`}>
         <AuthGuard>
           {/* Main Content */}
           <div className="min-h-screen">{children}</div>

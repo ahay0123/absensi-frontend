@@ -83,12 +83,14 @@ function BottomSheet({
       {/* Sheet */}
       <div
         ref={sheetRef}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
         className="relative bg-white rounded-t-[2.5rem] shadow-2xl animate-slide-up flex flex-col max-h-[90vh] overflow-hidden"
       >
-        {/* Drag Handle */}
-        <div className="flex-shrink-0 p-6 pb-4">
+        {/* Drag Handle & Header */}
+        <div
+          className="flex-shrink-0 p-6 pb-4"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
           <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4 cursor-grab active:cursor-grabbing" />
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-800">{title}</h2>
@@ -197,6 +199,7 @@ export default function ProfilePage() {
   const handleToggleDark = (val: boolean) => {
     setDarkMode(val);
     localStorage.setItem("dark_mode", String(val));
+    window.dispatchEvent(new Event('darkModeToggled'));
   };
 
   // ── Ganti Password ─────────────────────────────────────
@@ -350,9 +353,9 @@ export default function ProfilePage() {
       <BottomSheet
         open={activeSheet === "notif"}
         onClose={closeSheet}
-        title="Pengaturan Notifikasi"
+        title="Pusat Notifikasi"
       >
-        <div className="space-y-4 pb-6">
+        <div className="space-y-6 pb-6">
           <ToggleRow
             icon={notifEnabled ? BellRing : BellOff}
             iconColor={notifEnabled ? "text-blue-500" : "text-slate-400"}
@@ -362,6 +365,37 @@ export default function ProfilePage() {
             value={notifEnabled}
             onChange={handleToggleNotif}
           />
+
+          <div className="pt-2 border-t border-slate-100">
+            <h3 className="text-sm font-bold text-slate-800 mb-4 px-1">Notifikasi Terbaru</h3>
+            {!notifEnabled ? (
+              <div className="text-center py-8">
+                <BellOff className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                <p className="text-sm font-medium text-slate-400">Notifikasi saat ini dinonaktifkan.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <NotificationItem
+                  title="Absensi Berhasil"
+                  desc="Anda telah melakukan absensi untuk kelas X MIPA 1 (07:15)."
+                  time="Hari ini, 07:12"
+                  type="success"
+                />
+                <NotificationItem
+                  title="Pengajuan Izin Disetujui"
+                  desc="Pengajuan Izin (Sakit) Anda untuk besok telah disetujui."
+                  time="Kemarin, 14:30"
+                  type="info"
+                />
+                <NotificationItem
+                  title="Penting: Jadwal Baru"
+                  desc="Ada perubahan jadwal mengajar Anda di minggu ini. Silakan cek menu Jadwal."
+                  time="Senin, 09:00"
+                  type="warning"
+                />
+              </div>
+            )}
+          </div>
         </div>
       </BottomSheet>
 
@@ -511,6 +545,37 @@ function ToggleRow({
           className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300 ${value ? "translate-x-7" : "translate-x-1"}`}
         />
       </button>
+    </div>
+  );
+}
+
+function NotificationItem({ title, desc, time, type }: { title: string, desc: string, time: string, type: 'success' | 'info' | 'warning' }) {
+  const getIcon = () => {
+    switch (type) {
+      case 'success': return <CheckCircle className="w-5 h-5 text-emerald-500" />;
+      case 'info': return <Bell className="w-5 h-5 text-blue-500" />;
+      case 'warning': return <Shield className="w-5 h-5 text-amber-500" />;
+    }
+  };
+
+  const getBg = () => {
+    switch (type) {
+      case 'success': return 'bg-emerald-50';
+      case 'info': return 'bg-blue-50';
+      case 'warning': return 'bg-amber-50';
+    }
+  };
+
+  return (
+    <div className="flex gap-4 items-start p-4 hover:bg-slate-50 border border-slate-100 rounded-2xl transition-colors cursor-pointer">
+      <div className={`w-10 h-10 shrink-0 flex items-center justify-center rounded-xl ${getBg()}`}>
+        {getIcon()}
+      </div>
+      <div>
+        <h4 className="text-sm font-bold text-slate-800">{title}</h4>
+        <p className="text-xs text-slate-500 mt-1 leading-relaxed">{desc}</p>
+        <p className="text-[10px] font-bold text-slate-400 mt-2">{time}</p>
+      </div>
     </div>
   );
 }

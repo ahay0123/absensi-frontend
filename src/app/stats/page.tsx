@@ -6,6 +6,8 @@ import {
   Clock,
   Calendar,
   Loader2,
+  FileText,
+  AlertTriangle,
 } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import api from "@/lib/axios";
@@ -15,6 +17,8 @@ interface AttendanceStats {
   hadir?: number;
   terlambat?: number;
   absen?: number;
+  izin?: number;
+  alpa?: number;
   improvement?: number;
   weekly_data?: number[];
 }
@@ -35,6 +39,8 @@ export default function StatsPage() {
           hadir: 0,
           terlambat: 0,
           absen: 0,
+          izin: 0,
+          alpa: 0,
           improvement: 0,
           weekly_data: [0, 0, 0, 0, 0],
         });
@@ -57,7 +63,8 @@ export default function StatsPage() {
   const percentage = stats?.percentage || 0;
   const hadir = stats?.hadir || 0;
   const terlambat = stats?.terlambat || 0;
-  const absen = stats?.absen || 0;
+  const izin = stats?.izin || 0;
+  const alpa = stats?.alpa || 0;
   const improvement = stats?.improvement || 0;
   const weeklyData = stats?.weekly_data || [40, 70, 45, 90, 65];
 
@@ -87,18 +94,32 @@ export default function StatsPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-          <CheckCircle className="text-green-500 w-6 h-6 mb-3" />
-          <h4 className="text-2xl font-bold text-slate-800">{hadir}</h4>
-          <p className="text-slate-400 text-[10px] font-bold uppercase">
-            Hari Hadir
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center">
+          <CheckCircle className="text-emerald-500 w-8 h-8 mb-3" />
+          <h4 className="text-3xl font-black text-slate-800">{hadir}</h4>
+          <p className="text-slate-400 text-[10px] font-bold uppercase mt-1">
+            Hadir
           </p>
         </div>
-        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-          <Clock className="text-orange-500 w-6 h-6 mb-3" />
-          <h4 className="text-2xl font-bold text-slate-800">{terlambat}</h4>
-          <p className="text-slate-400 text-[10px] font-bold uppercase">
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center">
+          <Clock className="text-amber-500 w-8 h-8 mb-3" />
+          <h4 className="text-3xl font-black text-slate-800">{terlambat}</h4>
+          <p className="text-slate-400 text-[10px] font-bold uppercase mt-1">
             Terlambat
+          </p>
+        </div>
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center">
+          <FileText className="text-blue-500 w-8 h-8 mb-3" />
+          <h4 className="text-3xl font-black text-slate-800">{izin}</h4>
+          <p className="text-slate-400 text-[10px] font-bold uppercase mt-1">
+            Izin / Sakit
+          </p>
+        </div>
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center">
+          <AlertTriangle className="text-red-500 w-8 h-8 mb-3" />
+          <h4 className="text-3xl font-black text-slate-800">{alpa}</h4>
+          <p className="text-slate-400 text-[10px] font-bold uppercase mt-1">
+            Alpa
           </p>
         </div>
       </div>
