@@ -1,254 +1,245 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
-import { Html5QrcodeScanner } from "html5-qrcode";
-import api from "@/lib/axios";
-import {
-  Camera,
-  MapPin,
-  ScanLine,
-  Loader2,
-  ChevronLeft,
-  CheckCircle2,
-  AlertCircle,
-} from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import {
+  ArrowLeft,
+  Clock,
+  MapPin,
+  BookOpen,
+  Users,
+  CheckCircle2,
+  Loader2,
+  QrCode,
+  X,
+} from "lucide-react";
+import api from "@/lib/axios";
+
+export const dynamic = "force-dynamic";
+
+interface Student {
+  id: number;
+  name: string;
+  nis: string;
+  attended?: boolean;
+}
+
+interface Schedule {
+  id: number;
+  subject: {
+    name: string;
+  };
+  room: {
+    name: string;
+  };
+  start_time: string;
+  end_time: string;
+}
 
 export default function AbsensiPage() {
   const params = useParams();
   const router = useRouter();
-  const [isMounted, setIsMounted] = useState(false);
-
-  // DEBUG 1: Cek Parameter URL
   const scheduleId = params?.id;
-  console.log("DEBUG [1]: ID Jadwal diterima dari URL:", scheduleId);
 
-  const [step, setStep] = useState(1);
-  const [location, setLocation] = useState<{
-    lat: number;
-    long: number;
-    accuracy: number;
-  } | null>(null);
-  const [qrData, setQrData] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [showScanner, setShowScanner] = useState(false);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-
-  // DEBUG 2: Cek Mount Status & Hydration
   useEffect(() => {
-    setIsMounted(true);
-    console.log(
-      "DEBUG [2]: Komponen AbsensiPage Berhasil Mount (Muncul di Layar)",
+    const fetchScheduleData = async () => {
+      try {
+        console.log("📚 Fetching schedule data for ID:", scheduleId);
+        const response = await api.get(`/schedules/${scheduleId}`);
+        setSchedule(response.data.schedule);
+        setStudents(response.data.students || []);
+        console.log("✅ Schedule loaded:", response.data);
+      } catch (err) {
+        console.error("❌ Error loading schedule:", err);
+        alert("Gagal memuat data jadwal");
+        router.push("/");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (scheduleId) {
+      fetchScheduleData();
+    }
+  }, [scheduleId, router]);
+
+  const toggleAttendance = (studentId: number) => {
+    setStudents((prev) =>
+      prev.map((student) =>
+        student.id === studentId
+          ? { ...student, attended: !student.attended }
+          : student
+      )
     );
-
-    if (!scheduleId || scheduleId === "undefined") {
-      console.error("DEBUG [X]: ERROR! ID Jadwal tidak valid atau undefined.");
-      alert("Error: ID Jadwal tidak ditemukan di URL. Memindahkan kembali...");
-      // router.push("/"); // Sementara di-comment agar tidak mental otomatis saat debug
-    }
-  }, [scheduleId]);
-
-  // --- EFFECT: Ambil Lokasi GPS ---
-  useEffect(() => {
-    if (navigator.geolocation) {
-      console.log("DEBUG [3]: Mencoba mengambil lokasi GPS...");
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          console.log(
-            "DEBUG [4]: Lokasi Berhasil Didapat:",
-            pos.coords.latitude,
-            pos.coords.longitude,
-          );
-          setLocation({
-            lat: pos.coords.latitude,
-            long: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-          });
-        },
-        (err) => {
-          console.error("DEBUG [E]: GPS Error:", err.message);
-        },
-        { enableHighAccuracy: true },
-      );
-    }
-  }, []);
-
-  // --- LOGIC: Kamera Selfie ---
-  const startCamera = async () => {
-    console.log("DEBUG [5]: Menjalankan Fungsi Kamera Selfie...");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
-      });
-      streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      console.log("DEBUG [6]: Kamera Berhasil Aktif.");
-    } catch (err) {
-      console.error("DEBUG [E]: Gagal Akses Kamera:", err);
-      alert("Gagal mengakses kamera depan.");
-    }
   };
 
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      console.log("DEBUG [7]: Kamera Dimatikan.");
+  const handleSubmit = async () => {
+    const attendedStudents = students
+      .filter((s) => s.attended)
+      .map((s) => s.id);
+
+    if (attendedStudents.length === 0) {
+      alert("Pilih setidaknya satu siswa yang hadir");
+      return;
     }
-  };
 
-  // --- LOGIC: Kirim ke API ---
-  const sendAttendance = async (photoBlob: Blob) => {
-    console.log("DEBUG [8]: Menyiapkan Pengiriman Data ke Laravel...");
-    setIsLoading(true);
-    setStep(4);
-
-    const formData = new FormData();
-    formData.append("schedule_id", String(scheduleId));
-    formData.append("qr_payload", qrData || "");
-    formData.append("photo", photoBlob, "selfie.jpg");
-    formData.append("lat_check", location?.lat.toString() || "");
-    formData.append("long_check", location?.long.toString() || "");
-
+    setSubmitting(true);
     try {
-      const response = await api.post("/test-absen", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+      await api.post(`/attendance/${scheduleId}`, {
+        student_ids: attendedStudents,
       });
-      console.log("DEBUG [9]: API Berhasil!", response.data);
-      setStatusMessage({ type: "success", text: response.data.message });
-      setTimeout(() => router.push("/"), 3000);
+      alert(`Absensi berhasil! ${attendedStudents.length} siswa hadir.`);
+      router.push("/");
     } catch (err: any) {
-      console.error("DEBUG [E]: API Gagal:", err.response?.data);
-      setStatusMessage({
-        type: "error",
-        text: err.response?.data?.message || "Gagal mengirim absensi.",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const takeSelfie = () => {
-    if (canvasRef.current && videoRef.current) {
-      const context = canvasRef.current.getContext("2d");
-      canvasRef.current.width = videoRef.current.videoWidth;
-      canvasRef.current.height = videoRef.current.videoHeight;
-      context?.scale(-1, 1);
-      context?.drawImage(videoRef.current, -canvasRef.current.width, 0);
-      stopCamera();
-      canvasRef.current.toBlob(
-        (blob) => {
-          if (blob) sendAttendance(blob);
-        },
-        "image/jpeg",
-        0.8,
+      console.error("❌ Error submitting attendance:", err);
+      alert(
+        err.response?.data?.message || "Gagal menyimpan absensi. Coba lagi."
       );
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  // Prevent rendering until client-side hydration is complete
-  if (!isMounted) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-600">Memuat...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center p-6 text-slate-800">
-      <div className="w-full max-w-md flex justify-between items-center mb-10 mt-4">
+    <main className="min-h-screen bg-slate-50 pb-8">
+      {/* Header */}
+      <div className="bg-indigo-600 text-white p-6 rounded-b-[2.5rem] shadow-xl">
         <button
           onClick={() => router.push("/")}
-          className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center"
+          className="flex items-center gap-2 mb-4 active:scale-95 transition-all"
         >
-          <ChevronLeft className="w-6 h-6 text-slate-600" />
+          <ArrowLeft className="w-5 h-5" />
+          <span className="font-medium text-sm">Kembali</span>
         </button>
-        <div className="text-right">
-          <h1 className="text-lg font-bold">Presensi Kehadiran</h1>
-          <p className="text-xs text-slate-400">ID: #{scheduleId}</p>
+
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5" />
+            <h1 className="text-xl font-bold">
+              {schedule?.subject?.name || "Mata Pelajaran"}
+            </h1>
+          </div>
+          <div className="flex items-center gap-4 text-indigo-100 text-sm">
+            <div className="flex items-center gap-1">
+              <Clock className="w-4 h-4" />
+              <span>
+                {schedule?.start_time?.substring(0, 5)} -{" "}
+                {schedule?.end_time?.substring(0, 5)}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <MapPin className="w-4 h-4" />
+              <span>{schedule?.room?.name || "Ruang Kelas"}</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="w-full max-w-md bg-slate-50 rounded-[2.5rem] p-4 border border-slate-100 shadow-xl">
-        {step === 1 && (
-          <div className="py-10 flex flex-col items-center text-center">
-            <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center shadow-lg mb-6">
-              <ScanLine className="w-10 h-10 text-white" />
-            </div>
-            <h2 className="text-xl font-bold mb-2">Siap Mengajar?</h2>
-            <button
-              onClick={() => setStep(2)}
-              className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold"
-            >
-              Mulai Scan QR
-            </button>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="p-2">
-            <div
-              id="reader"
-              className="overflow-hidden rounded-3xl bg-black aspect-square"
-            ></div>
-            <p className="text-center mt-4 text-sm text-slate-500 italic">
-              Scan QR Ruangan
-            </p>
-            {/* Tombol darurat jika scanner tidak muncul di Vercel */}
-            <button
-              onClick={() => {
-                setQrData("MANUAL-TEST");
-                setStep(3);
-                startCamera();
-              }}
-              className="mt-4 w-full text-xs text-slate-400 underline"
-            >
-              Lewati Scan (Hanya untuk Tes)
-            </button>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="flex flex-col items-center">
-            <div className="relative w-full aspect-[3/4] bg-black rounded-3xl overflow-hidden">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                className="w-full h-full object-cover scale-x-[-1]"
-              />
-            </div>
-            <canvas ref={canvasRef} className="hidden" />
-            <button
-              onClick={takeSelfie}
-              className="mt-6 w-16 h-16 bg-white border-4 border-blue-600 rounded-full shadow-lg"
-            ></button>
-          </div>
-        )}
-
-        {step === 4 && (
-          <div className="py-10 text-center">
-            {isLoading ? (
-              <Loader2 className="w-10 h-10 animate-spin mx-auto text-blue-600" />
-            ) : statusMessage?.type === "success" ? (
-              <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto" />
-            ) : (
-              <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-            )}
-            <p className="mt-4 font-bold">
-              {isLoading ? "Memproses..." : statusMessage?.text}
-            </p>
-          </div>
-        )}
+      {/* Action Buttons */}
+      <div className="px-6 py-4 flex gap-3">
+        <button
+          onClick={() => setShowScanner(!showScanner)}
+          className="flex-1 bg-white border-2 border-indigo-600 text-indigo-600 font-bold py-3 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all"
+        >
+          {showScanner ? (
+            <>
+              <X className="w-5 h-5" />
+              Tutup QR
+            </>
+          ) : (
+            <>
+              <QrCode className="w-5 h-5" />
+              Scan QR
+            </>
+          )}
+        </button>
       </div>
-    </div>
+
+      {/* QR Scanner Placeholder */}
+      {showScanner && (
+        <div className="mx-6 mb-4 bg-slate-800 rounded-2xl p-8 text-center">
+          <QrCode className="w-16 h-16 text-white mx-auto mb-3 opacity-50" />
+          <p className="text-white text-sm font-medium">
+            QR Scanner akan diimplementasikan di sini
+          </p>
+          <p className="text-slate-400 text-xs mt-1">
+            Gunakan daftar manual di bawah untuk saat ini
+          </p>
+        </div>
+      )}
+
+      {/* Student List */}
+      <div className="px-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-bold text-slate-800 flex items-center gap-2">
+            <Users className="w-5 h-5 text-indigo-600" />
+            Daftar Siswa ({students.length})
+          </h2>
+          <span className="text-xs text-slate-400 font-medium">
+            {students.filter((s) => s.attended).length} hadir
+          </span>
+        </div>
+
+        <div className="space-y-2">
+          {students.map((student) => (
+            <button
+              key={student.id}
+              onClick={() => toggleAttendance(student.id)}
+              className={`w-full p-4 rounded-2xl border-2 transition-all active:scale-95 flex items-center justify-between ${student.attended
+                  ? "bg-indigo-50 border-indigo-600"
+                  : "bg-white border-slate-100"
+                }`}
+            >
+              <div className="text-left">
+                <p
+                  className={`font-bold text-sm ${student.attended ? "text-indigo-600" : "text-slate-800"}`}
+                >
+                  {student.name}
+                </p>
+                <p className="text-xs text-slate-400">{student.nis}</p>
+              </div>
+              {student.attended && (
+                <CheckCircle2 className="w-6 h-6 text-indigo-600" />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Submit Button */}
+      <div className="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-100">
+        <button
+          onClick={handleSubmit}
+          disabled={submitting || students.filter((s) => s.attended).length === 0}
+          className="w-full bg-indigo-600 text-white font-bold py-5 rounded-2xl shadow-lg shadow-indigo-200 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {submitting ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Menyimpan...
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="w-5 h-5" />
+              Simpan Absensi ({students.filter((s) => s.attended).length}{" "}
+              Siswa)
+            </>
+          )}
+        </button>
+      </div>
+    </main>
   );
 }

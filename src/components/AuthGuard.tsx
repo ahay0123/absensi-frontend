@@ -6,39 +6,44 @@ import { Loader2 } from "lucide-react";
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [authorized, setAuthorized] = useState(false);
-  const [loading, setLoading] = useState(true); // Tambahkan state loading
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    const checkAuth = () => {
-      const token =
-        typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      const path = pathname;
+    // Public routes that don't require authentication
+    const publicPaths = ["/login", "/register"];
 
-      // Halaman yang butuh login
-      const isProtectedPath =
-        path === "/" ||
-        path.startsWith("/presensi-guru") ||
-        path.startsWith("/attendance") ||
-        path.startsWith("/izin");
+    // Check if current path is public
+    const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
 
-      if (!token && isProtectedPath) {
-        // Jika tidak ada token dan mencoba masuk ke halaman dalam -> ke Login
-        setAuthorized(false);
-        router.replace("/login");
-      } else {
-        // Jika ada token, atau sedang di halaman publik -> IZINKAN
-        // KITA HAPUS router.replace("/") DI SINI agar tidak ada "mental" balik
-        setAuthorized(true);
-      }
-      setLoading(false);
-    };
+    // Get token from localStorage
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-    checkAuth();
+    console.log("🔐 AuthGuard Check:", { pathname, hasToken: !!token, isPublicPath });
+
+    // If on public path, allow access immediately
+    if (isPublicPath) {
+      console.log("✅ Public path - allowing access");
+      setIsChecking(false);
+      return;
+    }
+
+    // If on protected path without token, redirect to login
+    if (!token) {
+      console.log("❌ No token found - redirecting to login");
+      router.replace("/login");
+      return;
+    }
+
+    // Has token and on protected path - allow access
+    console.log("✅ Token found - allowing access");
+    setIsChecking(false);
   }, [pathname, router]);
 
-  // Jika masih loading atau belum authorized (dan bukan public path), tampilkan loader
-  if ((loading || !authorized) && !["/login", "/register"].includes(pathname)) {
+  // Show loader only while checking (not on public paths)
+  const publicPaths = ["/login", "/register"];
+  const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
+
+  if (isChecking && !isPublicPath) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white">
         <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mb-4" />
