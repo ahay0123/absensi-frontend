@@ -16,8 +16,6 @@ import {
 import api from "@/lib/axios";
 import Alert, { useAlert } from "@/components/Alert";
 
-export const dynamic = "force-dynamic";
-
 interface Schedule {
   id: number;
   room: {
