@@ -1,5 +1,5 @@
 "use client";
-import { Home, History, BarChart2, User, Scan } from "lucide-react";
+import { Home, History, BarChart2, User, Scan, FileText } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -14,6 +14,7 @@ export default function BottomNav() {
   const navs = [
     { name: "Home", icon: Home, path: "/" },
     { name: "History", icon: History, path: "/history" },
+    { name: "Absen Manual", icon: FileText, path: "/absen-manual" },
     { name: "Stats", icon: BarChart2, path: "/stats" },
     { name: "Profile", icon: User, path: "/profile" },
   ];

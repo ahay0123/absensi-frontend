@@ -44,6 +44,12 @@ export default function AbsensiPage() {
     accuracy: number;
   } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [attendanceType, setAttendanceType] = useState<
+    "check_in" | "check_out"
+  >("check_in");
+  const [checkInStatus, setCheckInStatus] = useState<boolean>(false);
+  const [canCheckOut, setCanCheckOut] = useState<boolean>(false);
+  const [remainingTime, setRemainingTime] = useState<string>("");
   const { alert, showAlert, hideAlert } = useAlert();
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -57,6 +63,9 @@ export default function AbsensiPage() {
         console.log("📚 Fetching schedule data for ID:", scheduleId);
         const response = await api.get(`/schedules/${scheduleId}`);
         setSchedule(response.data.schedule);
+
+        // Check if already checked-in
+        // TODO: Fetch attendance status from backend
         console.log("✅ Schedule loaded:", response.data);
       } catch (err) {
         console.error("❌ Error loading schedule:", err);
@@ -71,6 +80,33 @@ export default function AbsensiPage() {
       fetchScheduleData();
     }
   }, [scheduleId, router]);
+
+  // Timer untuk countdown checkout
+  useEffect(() => {
+    if (!schedule) return;
+
+    const checkTimer = setInterval(() => {
+      const now = new Date();
+      const endTime = new Date();
+      const [hours, minutes, seconds] = schedule.end_time
+        .split(":")
+        .map(Number);
+      endTime.setHours(hours, minutes, seconds);
+
+      if (now >= endTime) {
+        setCanCheckOut(true);
+        setRemainingTime("0");
+      } else {
+        const diffMs = endTime.getTime() - now.getTime();
+        const mins = Math.floor(diffMs / 60000);
+        const secs = Math.floor((diffMs % 60000) / 1000);
+        setRemainingTime(`${mins}m ${secs}s`);
+        setCanCheckOut(false);
+      }
+    }, 1000);
+
+    return () => clearInterval(checkTimer);
+  }, [schedule]);
 
   // Get GPS location
   useEffect(() => {
@@ -87,9 +123,12 @@ export default function AbsensiPage() {
         },
         (err) => {
           console.error("❌ GPS Error:", err.message);
-          showAlert("error", "Gagal mendapatkan lokasi GPS. Pastikan izin lokasi diaktifkan.");
+          showAlert(
+            "error",
+            "Gagal mendapatkan lokasi GPS. Pastikan izin lokasi diaktifkan.",
+          );
         },
-        { enableHighAccuracy: true }
+        { enableHighAccuracy: true },
       );
     }
   }, []);
@@ -108,7 +147,7 @@ export default function AbsensiPage() {
               fps: 10,
               qrbox: { width: 250, height: 250 },
             },
-            false
+            false,
           );
 
           scanner.render(
@@ -122,15 +161,18 @@ export default function AbsensiPage() {
             (error) => {
               // Ignore frequent scanning errors
               // console.warn("QR scan error:", error);
-            }
+            },
           );
 
           return () => {
-            scanner.clear().catch(() => { });
+            scanner.clear().catch(() => {});
           };
         } catch (err) {
           console.error("❌ QR Scanner Error:", err);
-          showAlert("warning", "Gagal memulai QR scanner. Gunakan tombol Lewati untuk testing.");
+          showAlert(
+            "warning",
+            "Gagal memulai QR scanner. Gunakan tombol Lewati untuk testing.",
+          );
         }
       };
 
@@ -149,7 +191,10 @@ export default function AbsensiPage() {
       console.log("📷 Camera started");
     } catch (err) {
       console.error("❌ Camera Error:", err);
-      showAlert("error", "Gagal mengakses kamera. Pastikan izin kamera diaktifkan.");
+      showAlert(
+        "error",
+        "Gagal mengakses kamera. Pastikan izin kamera diaktifkan.",
+      );
     }
   };
 
@@ -174,14 +219,17 @@ export default function AbsensiPage() {
           if (blob) submitAttendance(blob);
         },
         "image/jpeg",
-        0.8
+        0.8,
       );
     }
   };
 
   const submitAttendance = async (photoBlob: Blob) => {
     if (!location) {
-      showAlert("error", "Lokasi GPS belum tersedia. Tunggu sebentar dan coba lagi.");
+      showAlert(
+        "error",
+        "Lokasi GPS belum tersedia. Tunggu sebentar dan coba lagi.",
+      );
       setStep(3);
       startCamera();
       return;
@@ -192,6 +240,7 @@ export default function AbsensiPage() {
 
     const formData = new FormData();
     formData.append("schedule_id", String(scheduleId));
+    formData.append("attendance_type", attendanceType); // Add attendance type
     formData.append("qr_payload", qrData || "");
     formData.append("photo", photoBlob, "selfie.jpg");
     formData.append("lat_check", location.lat.toString());
@@ -204,12 +253,21 @@ export default function AbsensiPage() {
       });
       console.log("✅ Attendance submitted:", response.data);
       showAlert("success", response.data.message);
-      setTimeout(() => router.push("/"), 2500);
+
+      // Update state after successful check-in
+      if (attendanceType === "check_in") {
+        setCheckInStatus(true);
+        setAttendanceType("check_out");
+        setStep(1);
+      } else {
+        // After checkout, go back to home
+        setTimeout(() => router.push("/"), 2500);
+      }
     } catch (err: any) {
       console.error("❌ Submission error:", err.response?.data);
       showAlert(
         "error",
-        err.response?.data?.message || "Gagal mengirim absensi. Coba lagi."
+        err.response?.data?.message || "Gagal mengirim absensi. Coba lagi.",
       );
       setStep(1); // Reset to start
     } finally {
@@ -229,11 +287,7 @@ export default function AbsensiPage() {
     <main className="min-h-screen bg-slate-50">
       {/* Alert Component */}
       {alert && (
-        <Alert
-          type={alert.type}
-          message={alert.message}
-          onClose={hideAlert}
-        />
+        <Alert type={alert.type} message={alert.message} onClose={hideAlert} />
       )}
 
       {/* Header */}
@@ -273,19 +327,58 @@ export default function AbsensiPage() {
           {/* Step 1: Ready */}
           {step === 1 && (
             <div className="py-10 flex flex-col items-center text-center">
-              <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center shadow-lg mb-6">
-                <ScanLine className="w-10 h-10 text-white" />
-              </div>
-              <h2 className="text-xl font-bold text-slate-800 mb-2">Siap Mengajar?</h2>
-              <p className="text-slate-400 text-sm mb-6">
-                Scan QR Code ruangan untuk memulai absensi
-              </p>
-              <button
-                onClick={() => setStep(2)}
-                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold active:scale-95 transition-all shadow-lg shadow-indigo-200"
-              >
-                Mulai Scan QR
-              </button>
+              {!checkInStatus ? (
+                <>
+                  {/* CHECK-IN MODE */}
+                  <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center shadow-lg mb-6">
+                    <ScanLine className="w-10 h-10 text-white" />
+                  </div>
+                  <h2 className="text-xl font-bold text-slate-800 mb-2">
+                    Siap Mengajar?
+                  </h2>
+                  <p className="text-slate-400 text-sm mb-6">
+                    Scan QR Code ruangan untuk memulai absensi
+                  </p>
+                  <button
+                    onClick={() => setStep(2)}
+                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold active:scale-95 transition-all shadow-lg shadow-indigo-200"
+                  >
+                    Mulai Scan QR
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* CHECK-OUT MODE */}
+                  <div
+                    className={`w-20 h-20 rounded-3xl flex items-center justify-center shadow-lg mb-6 ${
+                      canCheckOut ? "bg-green-600" : "bg-amber-600"
+                    }`}
+                  >
+                    <CheckCircle2 className="w-10 h-10 text-white" />
+                  </div>
+                  <h2 className="text-xl font-bold text-slate-800 mb-2">
+                    {canCheckOut
+                      ? "✅ Jam Berakhir - Check-Out Sekarang"
+                      : "⏳ Menunggu Jam Berakhir"}
+                  </h2>
+                  <p className="text-slate-500 text-sm mb-6">
+                    {canCheckOut
+                      ? "Anda sudah bisa melakukan check-out"
+                      : `Waktu tersisa: ${remainingTime}`}
+                  </p>
+                  <button
+                    onClick={() => setStep(2)}
+                    disabled={!canCheckOut}
+                    className={`w-full py-4 rounded-2xl font-bold active:scale-95 transition-all shadow-lg ${
+                      canCheckOut
+                        ? "bg-green-600 text-white shadow-green-200"
+                        : "bg-slate-300 text-slate-500 cursor-not-allowed"
+                    }`}
+                  >
+                    {canCheckOut ? "Lakukan Check-Out" : "Tunggu Jam Berakhir"}
+                  </button>
+                </>
+              )}
             </div>
           )}
 

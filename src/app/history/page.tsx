@@ -24,6 +24,7 @@ export default function HistoryPage() {
     total: 0,
     hadir: 0,
     terlambat: 0,
+    alpa: 0,
     percentage: 0,
   });
 
@@ -56,7 +57,7 @@ export default function HistoryPage() {
     { value: "all", label: "Semua Status" },
     { value: "Hadir", label: "Hadir" },
     { value: "Terlambat", label: "Terlambat" },
-    { value: "Absen", label: "Absen" },
+    { value: "Alpa", label: "Alpa" },
   ];
 
   useEffect(() => {
@@ -188,7 +189,7 @@ export default function HistoryPage() {
           <h3 className="text-sm font-medium text-indigo-100 mb-3">
             Statistik Kehadiran
           </h3>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <div>
               <p className="text-2xl font-bold">{stats.total}</p>
               <p className="text-xs text-indigo-100">Total</p>
@@ -200,6 +201,10 @@ export default function HistoryPage() {
             <div>
               <p className="text-2xl font-bold">{stats.terlambat}</p>
               <p className="text-xs text-indigo-100">Terlambat</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{stats.alpa}</p>
+              <p className="text-xs text-indigo-100">Alpa</p>
             </div>
           </div>
           <div className="mt-4 pt-4 border-t border-indigo-400">

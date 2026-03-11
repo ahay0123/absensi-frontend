@@ -69,26 +69,41 @@ export default function AllQrsPage() {
                         Belum ada data ruang ditemukan.
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
                         {rooms.map((room, index) => (
-                            <div key={index} className="flex flex-col items-center bg-slate-50 rounded-2xl p-6 border border-slate-100 transition-transform hover:-translate-y-1 hover:shadow-lg">
-                                <h3 className="font-bold text-lg text-slate-800 mb-4">{room.room_name}</h3>
-                                <div className="bg-white p-3 rounded-2xl shadow-inner mb-4 relative">
+                            <div key={index} className="flex flex-col items-center bg-white rounded-3xl p-8 border border-slate-100 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 group relative">
+                                <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+
+                                <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                    <QrCodeIcon className="w-6 h-6" />
+                                </div>
+
+                                <h3 className="font-black text-xl text-slate-800 mb-1">{room.room_name}</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">Room ID: {room.room_id}</p>
+
+                                <div className="bg-slate-50 p-4 rounded-[2rem] shadow-inner mb-6 relative group-hover:bg-indigo-50 transition-colors">
                                     <QRCodeSVG
                                         value={room.qr_payload}
-                                        size={160}
-                                        bgColor={"#ffffff"}
+                                        size={180}
+                                        bgColor={"transparent"}
                                         fgColor={"#1e293b"}
-                                        level={"Q"}
+                                        level={"H"}
                                         includeMargin={false}
                                     />
                                     {qrExpiresIn === 0 && (
-                                        <div className="absolute inset-0 bg-white/80 rounded-2xl flex items-center justify-center backdrop-blur-[1px]">
-                                            <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+                                        <div className="absolute inset-0 bg-white/60 rounded-[2rem] flex items-center justify-center backdrop-blur-[2px]">
+                                            <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
                                         </div>
                                     )}
                                 </div>
-                                <p className="text-xs text-slate-400 font-medium bg-white px-3 py-1 rounded-full border border-slate-200">ID: {room.room_id}</p>
+
+                                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-indigo-600 transition-all duration-1000 ease-linear"
+                                        style={{ width: `${(qrExpiresIn / 30) * 100}%` }}
+                                    ></div>
+                                </div>
+                                <p className="text-[10px] font-bold text-indigo-600 mt-3 uppercase tracking-tighter">Refreshing in {qrExpiresIn}s</p>
                             </div>
                         ))}
                     </div>

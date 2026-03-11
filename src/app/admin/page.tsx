@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
-import { Users, MapPin, Calendar, FileText, CheckCircle, Clock, XCircle, UserPlus, Loader2 } from "lucide-react";
+import { Users, MapPin, Calendar, FileText, CheckCircle, Clock, XCircle, UserPlus, Loader2, ArrowUpRight } from "lucide-react";
 import api from "@/lib/axios";
 import Link from "next/link";
 
@@ -83,28 +83,30 @@ export default function AdminDashboard() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Attendance Summary */}
-                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 lg:col-span-2">
-                    <h2 className="font-bold text-lg text-slate-800 mb-6">Rekap Absensi Hari Ini</h2>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl text-center">
-                            <CheckCircle className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
-                            <h4 className="font-black text-xl text-emerald-700">{data?.attendance_summary?.Hadir || 0}</h4>
-                            <p className="text-[10px] font-bold text-emerald-600 uppercase mt-1">Hadir Tepat</p>
-                        </div>
-                        <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl text-center">
-                            <Clock className="w-6 h-6 text-amber-500 mx-auto mb-2" />
-                            <h4 className="font-black text-xl text-amber-700">{data?.attendance_summary?.Terlambat || 0}</h4>
-                            <p className="text-[10px] font-bold text-amber-600 uppercase mt-1">Terlambat</p>
-                        </div>
-                        <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl text-center">
-                            <UserPlus className="w-6 h-6 text-blue-500 mx-auto mb-2" />
-                            <h4 className="font-black text-xl text-blue-700">{data?.attendance_summary?.Izin || 0}</h4>
-                            <p className="text-[10px] font-bold text-blue-600 uppercase mt-1">Izin/Sakit</p>
-                        </div>
-                        <div className="bg-red-50 border border-red-100 p-4 rounded-2xl text-center">
-                            <XCircle className="w-6 h-6 text-red-500 mx-auto mb-2" />
-                            <h4 className="font-black text-xl text-red-700">{data?.attendance_summary?.Alpa || 0}</h4>
-                            <p className="text-[10px] font-bold text-red-600 uppercase mt-1">Alpa</p>
+                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 lg:col-span-2 flex flex-col justify-between">
+                    <div>
+                        <h2 className="font-bold text-lg text-slate-800 mb-6">Rekap Absensi Hari Ini</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl text-center">
+                                <CheckCircle className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
+                                <h4 className="font-black text-xl text-emerald-700">{data?.attendance_summary?.Hadir || 0}</h4>
+                                <p className="text-[10px] font-bold text-emerald-600 uppercase mt-1">Hadir Tepat</p>
+                            </div>
+                            <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl text-center">
+                                <Clock className="w-6 h-6 text-amber-500 mx-auto mb-2" />
+                                <h4 className="font-black text-xl text-amber-700">{data?.attendance_summary?.Terlambat || 0}</h4>
+                                <p className="text-[10px] font-bold text-amber-600 uppercase mt-1">Terlambat</p>
+                            </div>
+                            <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl text-center">
+                                <UserPlus className="w-6 h-6 text-blue-500 mx-auto mb-2" />
+                                <h4 className="font-black text-xl text-blue-700">{data?.attendance_summary?.Izin || 0}</h4>
+                                <p className="text-[10px] font-bold text-blue-600 uppercase mt-1">Izin/Sakit</p>
+                            </div>
+                            <div className="bg-red-50 border border-red-100 p-4 rounded-2xl text-center">
+                                <XCircle className="w-6 h-6 text-red-500 mx-auto mb-2" />
+                                <h4 className="font-black text-xl text-red-700">{data?.attendance_summary?.Alpa || 0}</h4>
+                                <p className="text-[10px] font-bold text-red-600 uppercase mt-1">Alpa</p>
+                            </div>
                         </div>
                     </div>
 
@@ -120,6 +122,43 @@ export default function AdminDashboard() {
                     </div>
                 </div>
 
+                {/* Demonstration Mode */}
+                <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-3xl p-6 text-white shadow-lg shadow-indigo-200 flex flex-col justify-between">
+                    <div>
+                        <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-4">
+                            <Users className="w-6 h-6 text-white" />
+                        </div>
+                        <h2 className="font-bold text-xl mb-2">Mode Demonstrasi</h2>
+                        <p className="text-sm text-indigo-100 mb-6 leading-relaxed">Gunakan alat ini untuk mendemonstrasikan alur presensi secara langsung.</p>
+
+                        <div className="space-y-3">
+                            <Link href="/admin/rooms/all-qrs" className="flex items-center justify-between p-4 bg-white/10 hover:bg-white/20 rounded-2xl transition-all group border border-white/10">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                                        <MapPin className="w-4 h-4" />
+                                    </div>
+                                    <span className="font-bold text-sm">Tampilkan QR Dinamis</span>
+                                </div>
+                                <ArrowUpRight className="w-4 h-4 text-indigo-200 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                            </Link>
+
+                            <Link href="/history" className="flex items-center justify-between p-4 bg-white/10 hover:bg-white/20 rounded-2xl transition-all group border border-white/10">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                                        <Calendar className="w-4 h-4" />
+                                    </div>
+                                    <span className="font-bold text-sm">Lihat History Guru</span>
+                                </div>
+                                <ArrowUpRight className="w-4 h-4 text-indigo-200 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                            </Link>
+                        </div>
+                    </div>
+
+                    <p className="text-[10px] text-indigo-200/60 font-medium uppercase tracking-widest text-center mt-6">Presentation Ready • v1.0</p>
+                </div>
+            </div>
+
+            <div className="mt-8">
                 {/* Recent Leaves */}
                 <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
                     <div className="flex justify-between items-center mb-6">
