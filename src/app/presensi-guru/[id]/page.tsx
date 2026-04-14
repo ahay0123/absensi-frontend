@@ -64,42 +64,103 @@ export default function AbsensiPage() {
     try {
       setLoading(true);
       setError(null);
-      console.log("📚 Fetching schedule data for ID:", scheduleId);
+      const endpoint = `/schedules/${scheduleId}`;
+      console.log("📚 [Presensi] Fetching schedule data", {
+        endpoint,
+        scheduleId,
+        timestamp: new Date().toISOString(),
+      });
 
-      const response = await api.get(`/schedules/${scheduleId}`);
+      const response = await api.get(endpoint);
 
-      if (!response.data.schedule) {
-        throw new Error("Data jadwal tidak valid");
+      console.log("📡 [Presensi] API Response received:", {
+        status: response.status,
+        data: response.data,
+        hasSchedule: !!response.data?.schedule,
+      });
+
+      // Handle both response structures for compatibility
+      const scheduleData = response.data?.schedule || response.data?.data;
+
+      if (!scheduleData) {
+        console.warn(
+          "⚠️ [Presensi] Response missing schedule data:",
+          response.data,
+        );
+        throw new Error(
+          "Data jadwal tidak valid - respons server tidak berisi jadwal yang diharapkan",
+        );
       }
 
-      setSchedule(response.data.schedule);
-      console.log("✅ Schedule loaded:", response.data.schedule);
+      // Validate schedule has required fields
+      if (!scheduleData.room) {
+        throw new Error("Data ruang kelas tidak tersedia");
+      }
+
+      setSchedule(scheduleData);
+      console.log("✅ [Presensi] Schedule loaded successfully:", {
+        id: scheduleData.id,
+        room: scheduleData.room?.name,
+        day: scheduleData.day,
+      });
     } catch (err: any) {
-      console.error("❌ Error loading schedule:", err);
+      console.error("❌ [Presensi] Error loading schedule:", {
+        error: err,
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        config: {
+          url: err.config?.url,
+          method: err.config?.method,
+        },
+      });
 
       let errorCode = "UNKNOWN_ERROR";
       let errorMessage = "Terjadi kesalahan saat memuat jadwal";
+      let debugInfo = "";
 
       if (err.response?.status === 404) {
         errorCode = "SCHEDULE_NOT_FOUND";
         errorMessage =
           "Jadwal tidak ditemukan atau Anda tidak memiliki akses ke jadwal ini";
+        debugInfo =
+          "Endpoint returned 404 - schedule not found or no permission";
       } else if (err.response?.status === 401) {
         errorCode = "UNAUTHORIZED";
         errorMessage = "Anda tidak terautentikasi. Silakan login kembali";
+        debugInfo = "Token tidak valid atau session expired";
       } else if (err.response?.status === 403) {
         errorCode = "FORBIDDEN";
         errorMessage = "Anda tidak memiliki akses ke jadwal ini";
+        debugInfo = "Authorization failed - user doesn't own this schedule";
+      } else if (err.response?.status === 500) {
+        errorCode = "SERVER_ERROR";
+        errorMessage = "Server mengalami error. Coba lagi dalam beberapa saat";
+        debugInfo = err.response?.data?.message || "Internal server error";
       } else if (
         err.message === "Network Error" ||
-        err.code === "ERR_NETWORK"
+        err.code === "ERR_NETWORK" ||
+        err.code === "ECONNABORTED"
       ) {
         errorCode = "NETWORK_ERROR";
         errorMessage =
           "Gagal terhubung ke server. Periksa koneksi internet Anda";
+        debugInfo = "Network connectivity issue";
+      } else if (err.message?.includes("Data jadwal tidak valid")) {
+        errorCode = "INVALID_RESPONSE";
+        errorMessage = err.message;
+        debugInfo = "API response structure tidak sesuai";
       } else if (err.response?.data?.message) {
         errorMessage = err.response.data.message;
+        debugInfo = err.response.data.message;
       }
+
+      console.error("📋 [Presensi] Debug Info:", {
+        errorCode,
+        errorMessage,
+        debugInfo,
+        endpoint: `/schedules/${scheduleId}`,
+      });
 
       setError({ code: errorCode, message: errorMessage });
       showAlert("error", errorMessage);
