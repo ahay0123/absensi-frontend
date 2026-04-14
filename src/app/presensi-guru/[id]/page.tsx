@@ -1,186 +1,203 @@
 "use client";
+
 import { useParams, useRouter } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
   ArrowLeft,
   Clock,
   MapPin,
   BookOpen,
-  Camera,
   CheckCircle2,
   Loader2,
-  QrCode,
   AlertCircle,
   ScanLine,
+  RefreshCw,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
-import api from "@/lib/axios";
-import Alert, { useAlert } from "@/components/Alert";
 
-interface Schedule {
-  id: number;
-  room: {
-    name: string;
-    qr_payload?: string;
-    latitude?: number;
-    longitude?: number;
-  };
-  start_time: string;
-  end_time: string;
-  day: string;
-}
+import Alert, { useAlert } from "@/components/Alert";
+import { usePresentiState } from "@/lib/use-presensi-state";
+import {
+  useCamera,
+  useQRScanner,
+  usePhotoCaptureCanvas,
+} from "@/lib/use-camera-qr";
+import { useNgrokMonitoring, useNgrokErrorRecovery } from "@/lib/use-ngrok";
+import {
+  fetchScheduleWithValidation,
+  submitAttendance,
+  requestGPSLocation,
+  createErrorState,
+} from "@/lib/presensi-api";
+import type { AttendanceType, LocationData } from "@/lib/presensi-types";
+
+/**
+ * REFACTORED: Presensi Guru Page
+ *
+ * Improvements:
+ * 1. Better state management dengan reducer pattern (usePresentiState)
+ * 2. Comprehensive error handling dengan retry logic
+ * 3. Proper resource cleanup dengan custom hooks
+ * 4. Ngrok-specific monitoring & debugging
+ * 5. Better separation of concerns
+ * 6. More maintainable & easier to extend
+ *
+ * Architecture:
+ * - State: usePresentiState hook (single source of truth)
+ * - API: presensi-api utils dengan retry & validation
+ * - Media: useCamera, useQRScanner, usePhotoCaptureCanvas hooks
+ * - Network: useNgrokMonitoring untuk backend health checks
+ */
 
 export default function AbsensiPage() {
   const params = useParams();
   const router = useRouter();
-  const scheduleId = params?.id;
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<{ code: string; message: string } | null>(
-    null,
-  );
-  const [step, setStep] = useState(1); // 1: Info, 2: QR Scan, 3: Selfie, 4: Submit
-  const [schedule, setSchedule] = useState<Schedule | null>(null);
-  const [qrData, setQrData] = useState<string | null>(null);
-  const [location, setLocation] = useState<{
-    lat: number;
-    long: number;
-    accuracy: number;
-  } | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [attendanceType, setAttendanceType] = useState<
-    "check_in" | "check_out"
-  >("check_in");
-  const [checkInStatus, setCheckInStatus] = useState<boolean>(false);
-  const [canCheckOut, setCanCheckOut] = useState<boolean>(false);
-  const [remainingTime, setRemainingTime] = useState<string>("");
+  // Handle scheduleId - can be string or string[] from dynamic route
+  const scheduleId = Array.isArray(params?.id) ? params.id[0] : params?.id;
+
+  // State management
+  const prsensi = usePresentiState();
   const { alert, showAlert, hideAlert } = useAlert();
 
+  // Media hooks
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const { startCamera, stopCamera } = useCamera(videoRef);
+  const { initQRScanner, stopQRScanner } = useQRScanner(
+    "qr-reader",
+    handleQRScanned,
+  );
+  const { capturePhoto } = usePhotoCaptureCanvas(canvasRef, videoRef);
 
-  // Fetch schedule data function
-  const fetchScheduleData = async () => {
+  // Network monitoring
+  const ngrok = useNgrokMonitoring();
+  const { getRecoverySteps } = useNgrokErrorRecovery();
+
+  // ============ Event Handlers ============
+
+  async function handleQRScanned(decodedText: string) {
+    console.log("✅ [QR] Scanned successfully");
+    prsensi.setQRData(decodedText);
+    await stopQRScanner();
+    prsensi.setStep("selfie");
+    startCamera();
+  }
+
+  async function handleTakeSelfie() {
     try {
-      setLoading(true);
-      setError(null);
-      const endpoint = `/schedules/${scheduleId}`;
-      console.log("📚 [Presensi] Fetching schedule data", {
-        endpoint,
-        scheduleId,
-        timestamp: new Date().toISOString(),
-      });
-
-      const response = await api.get(endpoint);
-
-      console.log("📡 [Presensi] API Response received:", {
-        status: response.status,
-        data: response.data,
-        hasSchedule: !!response.data?.schedule,
-      });
-
-      // Handle both response structures for compatibility
-      const scheduleData = response.data?.schedule || response.data?.data;
-
-      if (!scheduleData) {
-        console.warn(
-          "⚠️ [Presensi] Response missing schedule data:",
-          response.data,
-        );
-        throw new Error(
-          "Data jadwal tidak valid - respons server tidak berisi jadwal yang diharapkan",
-        );
+      prsensi.setSubmitting(true);
+      const blob = await capturePhoto();
+      if (blob) {
+        prsensi.setSelfie(blob);
+        prsensi.setStep("processing");
+        await submitPresence(blob);
       }
-
-      // Validate schedule has required fields
-      if (!scheduleData.room) {
-        throw new Error("Data ruang kelas tidak tersedia");
-      }
-
-      setSchedule(scheduleData);
-      console.log("✅ [Presensi] Schedule loaded successfully:", {
-        id: scheduleData.id,
-        room: scheduleData.room?.name,
-        day: scheduleData.day,
-      });
     } catch (err: any) {
-      console.error("❌ [Presensi] Error loading schedule:", {
-        error: err,
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status,
-        config: {
-          url: err.config?.url,
-          method: err.config?.method,
-        },
-      });
+      showAlert("error", err.message);
+      prsensi.setSubmitting(false);
+      await startCamera();
+    }
+  }
 
-      let errorCode = "UNKNOWN_ERROR";
-      let errorMessage = "Terjadi kesalahan saat memuat jadwal";
-      let debugInfo = "";
-
-      if (err.response?.status === 404) {
-        errorCode = "SCHEDULE_NOT_FOUND";
-        errorMessage =
-          "Jadwal tidak ditemukan atau Anda tidak memiliki akses ke jadwal ini";
-        debugInfo =
-          "Endpoint returned 404 - schedule not found or no permission";
-      } else if (err.response?.status === 401) {
-        errorCode = "UNAUTHORIZED";
-        errorMessage = "Anda tidak terautentikasi. Silakan login kembali";
-        debugInfo = "Token tidak valid atau session expired";
-      } else if (err.response?.status === 403) {
-        errorCode = "FORBIDDEN";
-        errorMessage = "Anda tidak memiliki akses ke jadwal ini";
-        debugInfo = "Authorization failed - user doesn't own this schedule";
-      } else if (err.response?.status === 500) {
-        errorCode = "SERVER_ERROR";
-        errorMessage = "Server mengalami error. Coba lagi dalam beberapa saat";
-        debugInfo = err.response?.data?.message || "Internal server error";
-      } else if (
-        err.message === "Network Error" ||
-        err.code === "ERR_NETWORK" ||
-        err.code === "ECONNABORTED"
-      ) {
-        errorCode = "NETWORK_ERROR";
-        errorMessage =
-          "Gagal terhubung ke server. Periksa koneksi internet Anda";
-        debugInfo = "Network connectivity issue";
-      } else if (err.message?.includes("Data jadwal tidak valid")) {
-        errorCode = "INVALID_RESPONSE";
-        errorMessage = err.message;
-        debugInfo = "API response structure tidak sesuai";
-      } else if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-        debugInfo = err.response.data.message;
+  async function submitPresence(photoBlob: Blob) {
+    try {
+      if (!prsensi.state.location) {
+        showAlert("error", "Lokasi GPS belum tersedia");
+        prsensi.setStep("selfie");
+        await startCamera();
+        return;
       }
 
-      console.error("📋 [Presensi] Debug Info:", {
-        errorCode,
-        errorMessage,
-        debugInfo,
-        endpoint: `/schedules/${scheduleId}`,
+      const response = await submitAttendance({
+        schedule_id: scheduleId as string,
+        attendance_type: (prsensi.state.checkInStatus
+          ? "check_out"
+          : "check_in") as AttendanceType,
+        qr_payload: prsensi.state.qrData || "",
+        photo: photoBlob,
+        lat_check: prsensi.state.location.lat,
+        long_check: prsensi.state.location.long,
+        gps_accuracy: prsensi.state.location.accuracy,
       });
 
-      setError({ code: errorCode, message: errorMessage });
-      showAlert("error", errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
+      showAlert("success", response.message || "Presensi berhasil!");
 
-  // Fetch schedule data on component mount
-  useEffect(() => {
-    if (scheduleId) {
-      fetchScheduleData();
+      // Handle post-submission
+      if (!prsensi.state.checkInStatus) {
+        // Check-in successful
+        prsensi.setCheckInStatus(true);
+        prsensi.setStep("info");
+      } else {
+        // Check-out successful
+        setTimeout(() => router.push("/"), 2500);
+      }
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.message ||
+        error.message ||
+        "Gagal mengirim presensi";
+      showAlert("error", msg);
+      prsensi.setStep("info");
+    } finally {
+      prsensi.setSubmitting(false);
     }
+  }
+
+  // ============ Effects ============
+
+  // Fetch schedule on mount
+  useEffect(() => {
+    if (!scheduleId) return;
+
+    const fetchSchedule = async () => {
+      try {
+        prsensi.setLoading(true);
+        const schedule = await fetchScheduleWithValidation(
+          scheduleId as string,
+        );
+        prsensi.setSchedule(schedule);
+      } catch (err: any) {
+        const errorState = createErrorState(err, "Schedule Fetch");
+        prsensi.setError(errorState);
+        showAlert("error", errorState.message);
+      } finally {
+        prsensi.setLoading(false);
+      }
+    };
+
+    fetchSchedule();
   }, [scheduleId]);
 
-  // Timer untuk countdown checkout - bisa check-out 15 menit sebelum kelas berakhir
+  // Request GPS location on mount
   useEffect(() => {
-    if (!schedule) return;
+    const getLocation = async () => {
+      try {
+        console.log("📍 Requesting GPS location...");
+        const location = await requestGPSLocation(prsensi.config.gpsTimeout);
+        prsensi.setLocation({
+          ...location,
+          timestamp: Date.now(),
+        });
+      } catch (err: any) {
+        console.error("❌ GPS Error:", err);
+        showAlert(
+          "warning",
+          "Gagal mendapatkan lokasi GPS. Pastikan izin lokasi diaktifkan.",
+        );
+      }
+    };
 
-    const checkTimer = setInterval(() => {
+    getLocation();
+  }, []);
+
+  // Checkout timer
+  useEffect(() => {
+    if (!prsensi.state.schedule) return;
+
+    const schedule = prsensi.state.schedule;
+    const interval = setInterval(() => {
       const now = new Date();
       const endTime = new Date();
       const [hours, minutes, seconds] = schedule.end_time
@@ -188,211 +205,55 @@ export default function AbsensiPage() {
         .map(Number);
       endTime.setHours(hours, minutes, seconds);
 
-      // Checkout bisa dibuka 15 menit sebelum class end
-      const checkoutOpenTime = new Date(endTime.getTime() - 15 * 60 * 1000);
+      const checkoutOpenTime = new Date(
+        endTime.getTime() - prsensi.config.checkoutLeadTimeMinutes * 60 * 1000,
+      );
 
       if (now >= checkoutOpenTime) {
-        setCanCheckOut(true);
-        setRemainingTime("0");
+        prsensi.setCheckOutTime(
+          prsensi.config.checkoutLeadTimeMinutes.toString(),
+        );
       } else {
         const diffMs = checkoutOpenTime.getTime() - now.getTime();
         const mins = Math.floor(diffMs / 60000);
         const secs = Math.floor((diffMs % 60000) / 1000);
-        setRemainingTime(`${mins}m ${secs}s`);
-        setCanCheckOut(false);
+        prsensi.setCheckOutTime(`${mins}m ${secs}s`);
       }
     }, 1000);
 
-    return () => clearInterval(checkTimer);
-  }, [schedule]);
+    return () => clearInterval(interval);
+  }, [prsensi.state.schedule]);
 
-  // Get GPS location
+  // Initialize QR Scanner when step changes
   useEffect(() => {
-    if (navigator.geolocation) {
-      console.log("📍 Getting GPS location...");
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setLocation({
-            lat: pos.coords.latitude,
-            long: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-          });
-          console.log("✅ Location obtained:", pos.coords);
-        },
-        (err) => {
-          console.error("❌ GPS Error:", err.message);
-          showAlert(
-            "error",
-            "Gagal mendapatkan lokasi GPS. Pastikan izin lokasi diaktifkan.",
-          );
-        },
-        { enableHighAccuracy: true },
-      );
-    }
-  }, []);
-
-  // Initialize QR Scanner when step changes to 2
-  useEffect(() => {
-    if (step === 2) {
-      const initQrScanner = async () => {
-        try {
-          // Dynamically import html5-qrcode
-          const { Html5QrcodeScanner } = await import("html5-qrcode");
-
-          const scanner = new Html5QrcodeScanner(
-            "qr-reader",
-            {
-              fps: 10,
-              qrbox: { width: 250, height: 250 },
-            },
-            false,
-          );
-
-          scanner.render(
-            (decodedText) => {
-              console.log("✅ QR Code scanned:", decodedText);
-              setQrData(decodedText);
-              scanner.clear();
-              setStep(3);
-              startCamera();
-            },
-            (error) => {
-              // Ignore frequent scanning errors
-              // console.warn("QR scan error:", error);
-            },
-          );
-
-          return () => {
-            scanner.clear().catch(() => {});
-          };
-        } catch (err) {
-          console.error("❌ QR Scanner Error:", err);
-          showAlert(
-            "warning",
-            "Gagal memulai QR scanner. Gunakan tombol Lewati untuk testing.",
-          );
-        }
-      };
-
-      initQrScanner();
-    }
-  }, [step]);
-
-  // Camera functions
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
+    if (prsensi.state.step === "qr_scan") {
+      initQRScanner().catch((err) => {
+        console.error("Failed to init QR scanner:", err);
+        showAlert(
+          "warning",
+          "Gagal memulai QR scanner. Gunakan tombol Lewati untuk testing.",
+        );
       });
-      streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      console.log("📷 Camera started");
-    } catch (err) {
-      console.error("❌ Camera Error:", err);
-      showAlert(
-        "error",
-        "Gagal mengakses kamera. Pastikan izin kamera diaktifkan.",
-      );
-    }
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      console.log("📷 Camera stopped");
-    }
-  };
-
-  const takeSelfie = () => {
-    if (canvasRef.current && videoRef.current) {
-      const context = canvasRef.current.getContext("2d");
-      canvasRef.current.width = videoRef.current.videoWidth;
-      canvasRef.current.height = videoRef.current.videoHeight;
-      context?.scale(-1, 1);
-      context?.drawImage(videoRef.current, -canvasRef.current.width, 0);
-      stopCamera();
-
-      canvasRef.current.toBlob(
-        (blob) => {
-          if (blob) submitAttendance(blob);
-        },
-        "image/jpeg",
-        0.8,
-      );
-    }
-  };
-
-  const submitAttendance = async (photoBlob: Blob) => {
-    if (!location) {
-      showAlert(
-        "error",
-        "Lokasi GPS belum tersedia. Tunggu sebentar dan coba lagi.",
-      );
-      setStep(3);
-      startCamera();
-      return;
+    } else {
+      stopQRScanner();
     }
 
-    setSubmitting(true);
-    setStep(4);
+    return () => {
+      stopQRScanner();
+    };
+  }, [prsensi.state.step, initQRScanner, stopQRScanner]);
 
-    const formData = new FormData();
-    formData.append("schedule_id", String(scheduleId));
-    formData.append("attendance_type", attendanceType); // Add attendance type
-    formData.append("qr_payload", qrData || "");
-    formData.append("photo", photoBlob, "selfie.jpg");
-    formData.append("lat_check", location.lat.toString());
-    formData.append("long_check", location.long.toString());
-    formData.append("gps_accuracy", location.accuracy.toString());
+  // ============ Render Helpers ============
 
-    try {
-      const response = await api.post("/test-absen", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      console.log("✅ Attendance submitted:", response.data);
-      showAlert("success", response.data.message);
+  function renderErrorUI() {
+    const error = prsensi.state.error;
+    if (!error) return null;
 
-      // Update state after successful check-in
-      if (attendanceType === "check_in") {
-        setCheckInStatus(true);
-        setAttendanceType("check_out");
-        setStep(1);
-      } else {
-        // After checkout, go back to home
-        setTimeout(() => router.push("/"), 2500);
-      }
-    } catch (err: any) {
-      console.error("❌ Submission error:", err.response?.data);
-      showAlert(
-        "error",
-        err.response?.data?.message || "Gagal mengirim absensi. Coba lagi.",
-      );
-      setStep(1); // Reset to start
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    const recovery = getRecoverySteps(error);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
-      </div>
-    );
-  }
-
-  // Error state UI
-  if (error || !schedule) {
     return (
       <main className="min-h-screen bg-slate-50 p-4">
-        {/* Alert Component */}
-        {alert && (
-          <Alert
-            type={alert.type}
-            message={alert.message}
-            onClose={hideAlert}
-          />
-        )}
+        {alert && <Alert {...alert} onClose={hideAlert} />}
 
         <div className="min-h-screen flex items-center justify-center">
           <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-lg border border-slate-100">
@@ -403,78 +264,61 @@ export default function AbsensiPage() {
             </div>
 
             <h2 className="text-xl font-bold text-slate-800 text-center mb-2">
-              Gagal Memuat Jadwal
+              Gagal Memuat Data
             </h2>
 
             <p className="text-slate-600 text-center text-sm mb-6">
-              {error?.message ||
-                "Terjadi kesalahan saat memuat data jadwal. Silakan coba lagi."}
+              {error.message}
             </p>
 
-            {/* Error code for debugging */}
-            <div className="bg-slate-50 rounded-xl p-3 mb-6 text-xs text-slate-500 font-mono">
-              Error Code:{" "}
-              <span className="font-bold">{error?.code || "UNKNOWN"}</span>
-              <br />
-              Schedule ID: <span className="font-bold">{scheduleId}</span>
+            {error.details && (
+              <div className="bg-slate-50 rounded-xl p-3 mb-6 text-xs text-slate-500 font-mono">
+                {error.code}
+                <br />
+                {error.details}
+              </div>
+            )}
+
+            {/* Ngrok Status */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-6 text-xs flex items-center gap-2">
+              {ngrok.isHealthy ? (
+                <Wifi className="w-4 h-4 text-green-600" />
+              ) : (
+                <WifiOff className="w-4 h-4 text-red-600" />
+              )}
+              <span>
+                {ngrok.isHealthy ? "Backend aktif" : "Backend offline"}
+              </span>
             </div>
 
-            {/* Help Tips */}
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-sm text-blue-700">
-              <p className="font-bold mb-2">💡 Kemungkinan penyebab:</p>
-              <ul className="text-xs space-y-1 list-disc list-inside">
-                {error?.code === "SCHEDULE_NOT_FOUND" && (
-                  <>
-                    <li>Jadwal tidak lagi tersedia atau sudah dihapus</li>
-                    <li>Anda tidak memiliki akses ke jadwal ini</li>
-                    <li>Jadwal milik guru/user lain</li>
-                  </>
-                )}
-                {error?.code === "UNAUTHORIZED" && (
-                  <>
-                    <li>Session Anda telah berakhir</li>
-                    <li>Perlu login kembali</li>
-                  </>
-                )}
-                {error?.code === "NETWORK_ERROR" && (
-                  <>
-                    <li>Koneksi internet tidak stabil</li>
-                    <li>Server tidak dapat dijangkau</li>
-                    <li>Coba ubah koneksi WiFi atau data</li>
-                  </>
-                )}
-                {!error?.code && (
-                  <>
-                    <li>Coba refresh halaman</li>
-                    <li>Cek koneksi internet Anda</li>
-                  </>
-                )}
+            {/* Recovery Steps */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-sm text-amber-900">
+              <p className="font-bold mb-2">{recovery.title}</p>
+              <ul className="text-xs space-y-1">
+                {recovery.steps.map((step, i) => (
+                  <li key={i}>{step}</li>
+                ))}
               </ul>
             </div>
 
-            {/* Action Buttons */}
             <div className="flex gap-3">
               <button
-                onClick={() => {
-                  setError(null);
-                  setLoading(true);
-                  // Trigger re-fetch by resetting
-                  fetchScheduleData();
-                }}
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors active:scale-95"
+                onClick={() => window.location.reload()}
+                className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors active:scale-95"
               >
-                🔄 Coba Lagi
+                <RefreshCw className="w-4 h-4" />
+                Coba Lagi
               </button>
               <button
                 onClick={() => router.push("/")}
                 className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 rounded-xl transition-colors active:scale-95"
               >
-                ← Kembali
+                Kembali
               </button>
             </div>
 
             <p className="text-xs text-slate-400 text-center mt-4">
-              Jika masalah berlanjut, hubungi admin sekolah
+              Error Code: {error.code}
             </p>
           </div>
         </div>
@@ -482,12 +326,53 @@ export default function AbsensiPage() {
     );
   }
 
+  function renderLoadingUI() {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
+          <p className="text-slate-600 font-medium">Memuat data jadwal...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ Main Render ============
+
+  if (prsensi.state.loading) {
+    return renderLoadingUI();
+  }
+
+  if (prsensi.state.error || !prsensi.state.schedule) {
+    return renderErrorUI();
+  }
+
+  const schedule = prsensi.state.schedule;
+  const attendanceType: AttendanceType = prsensi.state.checkInStatus
+    ? "check_out"
+    : "check_in";
+
   return (
     <main className="min-h-screen bg-slate-50">
-      {/* Alert Component */}
-      {alert && (
-        <Alert type={alert.type} message={alert.message} onClose={hideAlert} />
-      )}
+      {alert && <Alert {...alert} onClose={hideAlert} />}
+
+      {/* Ngrok Status Badge */}
+      <div className="fixed top-4 right-4 z-50">
+        <div
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold ${
+            ngrok.isHealthy
+              ? "bg-green-100 text-green-700"
+              : "bg-red-100 text-red-700"
+          }`}
+        >
+          {ngrok.isHealthy ? (
+            <Wifi className="w-3 h-3" />
+          ) : (
+            <WifiOff className="w-3 h-3" />
+          )}
+          {ngrok.isHealthy ? "Connected" : "Offline"}
+        </div>
+      </div>
 
       {/* Header */}
       <div className="bg-indigo-600 text-white p-6 rounded-b-[2.5rem] shadow-xl">
@@ -508,13 +393,13 @@ export default function AbsensiPage() {
             <div className="flex items-center gap-1">
               <Clock className="w-4 h-4" />
               <span>
-                {schedule?.start_time?.substring(0, 5)} -{" "}
-                {schedule?.end_time?.substring(0, 5)}
+                {schedule.start_time.substring(0, 5)} -{" "}
+                {schedule.end_time.substring(0, 5)}
               </span>
             </div>
             <div className="flex items-center gap-1">
               <MapPin className="w-4 h-4" />
-              <span>{schedule?.room?.name || "Ruang Kelas"}</span>
+              <span>{schedule.room.name}</span>
             </div>
           </div>
         </div>
@@ -523,12 +408,11 @@ export default function AbsensiPage() {
       {/* Content */}
       <div className="p-6">
         <div className="bg-white rounded-[2.5rem] p-6 shadow-xl border border-slate-100">
-          {/* Step 1: Ready */}
-          {step === 1 && (
+          {/* Step: Info / Ready */}
+          {prsensi.state.step === "info" && (
             <div className="py-10 flex flex-col items-center text-center">
-              {!checkInStatus ? (
+              {prsensi.isCheckInMode ? (
                 <>
-                  {/* CHECK-IN MODE */}
                   <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center shadow-lg mb-6">
                     <ScanLine className="w-10 h-10 text-white" />
                   </div>
@@ -536,53 +420,54 @@ export default function AbsensiPage() {
                     Siap Mengajar?
                   </h2>
                   <p className="text-slate-400 text-sm mb-6">
-                    Scan QR Code ruangan untuk memulai absensi
+                    Scan QR Code dan ambil foto untuk mulai
                   </p>
                   <button
-                    onClick={() => setStep(2)}
+                    onClick={() => prsensi.setStep("qr_scan")}
                     className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold active:scale-95 transition-all shadow-lg shadow-indigo-200"
                   >
-                    Mulai Scan QR
+                    Mulai Presensi
                   </button>
                 </>
               ) : (
                 <>
-                  {/* CHECK-OUT MODE */}
                   <div
                     className={`w-20 h-20 rounded-3xl flex items-center justify-center shadow-lg mb-6 ${
-                      canCheckOut ? "bg-green-600" : "bg-amber-600"
+                      prsensi.state.canCheckOut
+                        ? "bg-green-600"
+                        : "bg-amber-600"
                     }`}
                   >
                     <CheckCircle2 className="w-10 h-10 text-white" />
                   </div>
                   <h2 className="text-xl font-bold text-slate-800 mb-2">
-                    {canCheckOut
-                      ? "✅ Jam Berakhir - Check-Out Sekarang"
+                    {prsensi.state.canCheckOut
+                      ? "✅ Jam Berakhir"
                       : "⏳ Menunggu Jam Berakhir"}
                   </h2>
                   <p className="text-slate-500 text-sm mb-6">
-                    {canCheckOut
+                    {prsensi.state.canCheckOut
                       ? "Anda sudah bisa melakukan check-out"
-                      : `Waktu tersisa: ${remainingTime}`}
+                      : `Waktu tersisa: ${prsensi.state.checksOutTime}`}
                   </p>
                   <button
-                    onClick={() => setStep(2)}
-                    disabled={!canCheckOut}
+                    onClick={() => prsensi.setStep("qr_scan")}
+                    disabled={!prsensi.state.canCheckOut}
                     className={`w-full py-4 rounded-2xl font-bold active:scale-95 transition-all shadow-lg ${
-                      canCheckOut
+                      prsensi.state.canCheckOut
                         ? "bg-green-600 text-white shadow-green-200"
                         : "bg-slate-300 text-slate-500 cursor-not-allowed"
                     }`}
                   >
-                    {canCheckOut ? "Lakukan Check-Out" : "Tunggu Jam Berakhir"}
+                    Checkout
                   </button>
                 </>
               )}
             </div>
           )}
 
-          {/* Step 2: QR Scanner */}
-          {step === 2 && (
+          {/* Step: QR Scanner */}
+          {prsensi.state.step === "qr_scan" && (
             <div className="space-y-4">
               <div
                 id="qr-reader"
@@ -593,19 +478,19 @@ export default function AbsensiPage() {
               </p>
               <button
                 onClick={() => {
-                  setQrData("MANUAL-TEST-QR");
-                  setStep(3);
+                  prsensi.setQRData("MANUAL-TEST");
+                  prsensi.setStep("selfie");
                   startCamera();
                 }}
                 className="w-full text-xs text-slate-400 underline py-2"
               >
-                Lewati Scan (Testing Only)
+                Lewati Scan (Testing)
               </button>
             </div>
           )}
 
-          {/* Step 3: Selfie */}
-          {step === 3 && (
+          {/* Step: Selfie */}
+          {prsensi.state.step === "selfie" && (
             <div className="space-y-4">
               <div className="relative aspect-[3/4] bg-black rounded-3xl overflow-hidden">
                 <video
@@ -620,17 +505,21 @@ export default function AbsensiPage() {
                 Pastikan wajah terlihat jelas
               </p>
               <button
-                onClick={takeSelfie}
-                className="mx-auto block w-16 h-16 bg-white border-4 border-indigo-600 rounded-full shadow-lg active:scale-90 transition-all"
+                onClick={handleTakeSelfie}
+                disabled={prsensi.state.submitting}
+                className="mx-auto block w-16 h-16 bg-white border-4 border-indigo-600 rounded-full shadow-lg active:scale-90 transition-all disabled:opacity-50"
               />
             </div>
           )}
 
-          {/* Step 4: Processing */}
-          {step === 4 && (
+          {/* Step: Processing */}
+          {prsensi.state.step === "processing" && (
             <div className="py-10 text-center">
               <Loader2 className="w-12 h-12 animate-spin mx-auto text-indigo-600 mb-4" />
-              <p className="font-bold text-slate-800">Memproses absensi...</p>
+              <p className="font-bold text-slate-800">
+                Memproses{" "}
+                {prsensi.state.checkInStatus ? "check-out" : "check-in"}...
+              </p>
             </div>
           )}
         </div>
