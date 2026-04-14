@@ -35,6 +35,9 @@ export default function AbsensiPage() {
   const scheduleId = params?.id;
 
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<{ code: string; message: string } | null>(
+    null,
+  );
   const [step, setStep] = useState(1); // 1: Info, 2: QR Scan, 3: Selfie, 4: Submit
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [qrData, setQrData] = useState<string | null>(null);
@@ -56,30 +59,61 @@ export default function AbsensiPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Fetch schedule data
-  useEffect(() => {
-    const fetchScheduleData = async () => {
-      try {
-        console.log("📚 Fetching schedule data for ID:", scheduleId);
-        const response = await api.get(`/schedules/${scheduleId}`);
-        setSchedule(response.data.schedule);
+  // Fetch schedule data function
+  const fetchScheduleData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log("📚 Fetching schedule data for ID:", scheduleId);
 
-        // Check if already checked-in
-        // TODO: Fetch attendance status from backend
-        console.log("✅ Schedule loaded:", response.data);
-      } catch (err) {
-        console.error("❌ Error loading schedule:", err);
-        showAlert("error", "Gagal memuat data jadwal");
-        setTimeout(() => router.push("/"), 2000);
-      } finally {
-        setLoading(false);
+      const response = await api.get(`/schedules/${scheduleId}`);
+
+      if (!response.data.schedule) {
+        throw new Error("Data jadwal tidak valid");
       }
-    };
 
+      setSchedule(response.data.schedule);
+      console.log("✅ Schedule loaded:", response.data.schedule);
+    } catch (err: any) {
+      console.error("❌ Error loading schedule:", err);
+
+      let errorCode = "UNKNOWN_ERROR";
+      let errorMessage = "Terjadi kesalahan saat memuat jadwal";
+
+      if (err.response?.status === 404) {
+        errorCode = "SCHEDULE_NOT_FOUND";
+        errorMessage =
+          "Jadwal tidak ditemukan atau Anda tidak memiliki akses ke jadwal ini";
+      } else if (err.response?.status === 401) {
+        errorCode = "UNAUTHORIZED";
+        errorMessage = "Anda tidak terautentikasi. Silakan login kembali";
+      } else if (err.response?.status === 403) {
+        errorCode = "FORBIDDEN";
+        errorMessage = "Anda tidak memiliki akses ke jadwal ini";
+      } else if (
+        err.message === "Network Error" ||
+        err.code === "ERR_NETWORK"
+      ) {
+        errorCode = "NETWORK_ERROR";
+        errorMessage =
+          "Gagal terhubung ke server. Periksa koneksi internet Anda";
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      }
+
+      setError({ code: errorCode, message: errorMessage });
+      showAlert("error", errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch schedule data on component mount
+  useEffect(() => {
     if (scheduleId) {
       fetchScheduleData();
     }
-  }, [scheduleId, router]);
+  }, [scheduleId]);
 
   // Timer untuk countdown checkout - bisa check-out 15 menit sebelum kelas berakhir
   useEffect(() => {
@@ -283,6 +317,107 @@ export default function AbsensiPage() {
       <div className="min-h-screen flex items-center justify-center bg-white">
         <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
       </div>
+    );
+  }
+
+  // Error state UI
+  if (error || !schedule) {
+    return (
+      <main className="min-h-screen bg-slate-50 p-4">
+        {/* Alert Component */}
+        {alert && (
+          <Alert
+            type={alert.type}
+            message={alert.message}
+            onClose={hideAlert}
+          />
+        )}
+
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-lg border border-slate-100">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-8 h-8 text-red-600" />
+              </div>
+            </div>
+
+            <h2 className="text-xl font-bold text-slate-800 text-center mb-2">
+              Gagal Memuat Jadwal
+            </h2>
+
+            <p className="text-slate-600 text-center text-sm mb-6">
+              {error?.message ||
+                "Terjadi kesalahan saat memuat data jadwal. Silakan coba lagi."}
+            </p>
+
+            {/* Error code for debugging */}
+            <div className="bg-slate-50 rounded-xl p-3 mb-6 text-xs text-slate-500 font-mono">
+              Error Code:{" "}
+              <span className="font-bold">{error?.code || "UNKNOWN"}</span>
+              <br />
+              Schedule ID: <span className="font-bold">{scheduleId}</span>
+            </div>
+
+            {/* Help Tips */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-sm text-blue-700">
+              <p className="font-bold mb-2">💡 Kemungkinan penyebab:</p>
+              <ul className="text-xs space-y-1 list-disc list-inside">
+                {error?.code === "SCHEDULE_NOT_FOUND" && (
+                  <>
+                    <li>Jadwal tidak lagi tersedia atau sudah dihapus</li>
+                    <li>Anda tidak memiliki akses ke jadwal ini</li>
+                    <li>Jadwal milik guru/user lain</li>
+                  </>
+                )}
+                {error?.code === "UNAUTHORIZED" && (
+                  <>
+                    <li>Session Anda telah berakhir</li>
+                    <li>Perlu login kembali</li>
+                  </>
+                )}
+                {error?.code === "NETWORK_ERROR" && (
+                  <>
+                    <li>Koneksi internet tidak stabil</li>
+                    <li>Server tidak dapat dijangkau</li>
+                    <li>Coba ubah koneksi WiFi atau data</li>
+                  </>
+                )}
+                {!error?.code && (
+                  <>
+                    <li>Coba refresh halaman</li>
+                    <li>Cek koneksi internet Anda</li>
+                  </>
+                )}
+              </ul>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setError(null);
+                  setLoading(true);
+                  // Trigger re-fetch by resetting
+                  fetchScheduleData();
+                }}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors active:scale-95"
+              >
+                🔄 Coba Lagi
+              </button>
+              <button
+                onClick={() => router.push("/")}
+                className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 rounded-xl transition-colors active:scale-95"
+              >
+                ← Kembali
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400 text-center mt-4">
+              Jika masalah berlanjut, hubungi admin sekolah
+            </p>
+          </div>
+        </div>
+      </main>
     );
   }
 
