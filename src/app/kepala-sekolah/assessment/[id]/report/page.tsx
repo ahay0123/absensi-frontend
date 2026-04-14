@@ -69,16 +69,10 @@ export default function ReportPage({
   const [report, setReport] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
-  const [selectedPeriod, setSelectedPeriod] = useState<string>(
-    new Date().toISOString().substring(0, 7),
-  );
-
-  useEffect(() => {
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(() => {
     const periodParam = searchParams.get("period");
-    if (periodParam) {
-      setSelectedPeriod(periodParam);
-    }
-  }, [searchParams]);
+    return periodParam || new Date().toISOString().substring(0, 7);
+  });
 
   const fetchReport = useCallback(async () => {
     if (!teacherId) return;
@@ -150,6 +144,13 @@ export default function ReportPage({
     score: item.score || 0,
   }));
 
+  const handlePeriodChange = (newPeriod: string) => {
+    setSelectedPeriod(newPeriod);
+    router.push(
+      `/kepala-sekolah/assessment/${teacherId}/report?period=${encodeURIComponent(newPeriod)}`,
+    );
+  };
+
   const getScoreBadgeColor = (score: number) => {
     if (score >= 4.5) return "bg-green-100 text-green-800";
     if (score >= 3.5) return "bg-blue-100 text-blue-800";
@@ -190,25 +191,54 @@ export default function ReportPage({
 
           {/* Teacher Info */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
-            <div className="flex items-center gap-6">
-              {report.teacher.avatar && (
-                <img
-                  src={report.teacher.avatar}
-                  alt={report.teacher.name}
-                  className="w-16 h-16 rounded-full object-cover"
-                />
-              )}
-              <div className="flex-1">
-                <h2 className="text-2xl font-bold text-slate-900">
-                  {report.teacher.name}
-                </h2>
-                <p className="text-slate-600">{report.teacher.email}</p>
-                {report.teacher.nip && (
-                  <p className="text-sm text-slate-600">
-                    NIP: {report.teacher.nip}
-                  </p>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-6 flex-1">
+                {report.teacher.avatar && (
+                  <img
+                    src={report.teacher.avatar}
+                    alt={report.teacher.name}
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
                 )}
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold text-slate-900">
+                    {report.teacher.name}
+                  </h2>
+                  <p className="text-slate-600">{report.teacher.email}</p>
+                  {report.teacher.nip && (
+                    <p className="text-sm text-slate-600">
+                      NIP: {report.teacher.nip}
+                    </p>
+                  )}
+                </div>
               </div>
+            </div>
+
+            {/* Period Selector */}
+            <div className="flex items-center gap-4 border-t border-slate-200 pt-6">
+              <Calendar size={20} className="text-slate-600" />
+              <label
+                htmlFor="period-select"
+                className="font-medium text-slate-700"
+              >
+                Pilih Periode:
+              </label>
+              <select
+                id="period-select"
+                value={selectedPeriod}
+                onChange={(e) => handlePeriodChange(e.target.value)}
+                className="px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium cursor-pointer"
+              >
+                {report.history.length > 0 && (
+                  <>
+                    {report.history.map((item) => (
+                      <option key={item.period} value={item.period}>
+                        {item.period}
+                      </option>
+                    ))}
+                  </>
+                )}
+              </select>
             </div>
           </div>
 
@@ -217,7 +247,7 @@ export default function ReportPage({
             <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-8">
               <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-3">
                 <BarChart3 size={24} className="text-purple-600" />
-                Grafik Radar Penilaian (Periode: {report.current_period})
+                Grafik Radar Penilaian (Periode: {selectedPeriod})
               </h3>
 
               {radarData.length > 0 ? (

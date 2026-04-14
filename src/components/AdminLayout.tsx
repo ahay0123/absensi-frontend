@@ -39,16 +39,20 @@ export default function AdminLayout({
 
   const navs = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+    // INPUT Section
     { name: "Data Guru", href: "/admin/users", icon: Users },
     { name: "Jadwal", href: "/admin/schedules", icon: Calendar },
     { name: "Lokasi Ruang", href: "/admin/rooms", icon: MapPin },
-    { name: "Display QR", href: "/admin/rooms/all-qrs", icon: QrCodeIcon },
-    { name: "Data Absensi", href: "/admin/attendances", icon: ClipboardList },
     {
       name: "Indikator Penilaian",
       href: "/admin/assessment-categories",
       icon: Star,
     },
+    // PROSES Section
+    { name: "Data Absensi", href: "/admin/attendances", icon: ClipboardList },
+    // OUTPUT Section
+    { name: "Display QR", href: "/admin/rooms/all-qrs", icon: QrCodeIcon },
+    // SETTINGS Section
     { name: "Profil Sekolah", href: "/admin/school-profile", icon: Settings },
   ];
 

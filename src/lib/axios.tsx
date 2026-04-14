@@ -3,9 +3,10 @@ import axios from "axios";
 const api = axios.create({
   baseURL: "https://gemmaceous-birectangular-sunshine.ngrok-free.dev/api",
   withCredentials: true,
+  timeout: 30000, // 30 second timeout (increased from 15s)
   headers: {
     "Content-Type": "application/json",
-    "Accept": "application/json",
+    Accept: "application/json",
     "ngrok-skip-browser-warning": "69420",
   },
 });
@@ -16,20 +17,48 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // Log request
+  console.log(`📤 [${config.method?.toUpperCase()}] ${config.url}`);
   return config;
 });
 
-// Otomatis handle token expired (401 Unauthorized)
+// Otomatis handle token expired (401 Unauthorized) dan logging
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`✅ [${response.status}] ${response.config.url}`);
+    return response;
+  },
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+    const url = error.config?.url;
+
+    console.error(`❌ [${status}] ${url}`, {
+      statusText: error.response?.statusText,
+      message: error.message,
+      data: error.response?.data,
+    });
+
+    // Handle 401 Unauthorized
+    if (status === 401) {
+      console.warn(
+        "🔐 Token expired - clearing storage and redirecting to login",
+      );
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      window.location.href = "/login";
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
     }
+
+    // Log 500 errors untuk debugging
+    if (status === 500) {
+      console.error(
+        "🔴 Server Internal Error (500). Backend sedang bermasalah.",
+      );
+    }
+
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

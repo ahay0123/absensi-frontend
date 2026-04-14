@@ -81,7 +81,7 @@ export default function AbsensiPage() {
     }
   }, [scheduleId, router]);
 
-  // Timer untuk countdown checkout
+  // Timer untuk countdown checkout - bisa check-out 15 menit sebelum kelas berakhir
   useEffect(() => {
     if (!schedule) return;
 
@@ -93,11 +93,14 @@ export default function AbsensiPage() {
         .map(Number);
       endTime.setHours(hours, minutes, seconds);
 
-      if (now >= endTime) {
+      // Checkout bisa dibuka 15 menit sebelum class end
+      const checkoutOpenTime = new Date(endTime.getTime() - 15 * 60 * 1000);
+
+      if (now >= checkoutOpenTime) {
         setCanCheckOut(true);
         setRemainingTime("0");
       } else {
-        const diffMs = endTime.getTime() - now.getTime();
+        const diffMs = checkoutOpenTime.getTime() - now.getTime();
         const mins = Math.floor(diffMs / 60000);
         const secs = Math.floor((diffMs % 60000) / 1000);
         setRemainingTime(`${mins}m ${secs}s`);

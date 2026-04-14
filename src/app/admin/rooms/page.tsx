@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
-import MapPicker from "@/components/MapPicker";
+import InteractiveMapPicker from "@/components/InteractiveMapPicker";
 import {
   Plus,
   Edit2,
@@ -244,8 +244,8 @@ export default function AdminRooms() {
       {/* Modal CRUD */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-slideDown">
-            <div className="flex justify-between items-center p-6 border-b border-slate-100">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-slideDown max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b border-slate-100 shrink-0">
               <h2 className="text-xl font-bold text-slate-800">
                 {modalMode === "create" ? "Tambah Ruang Baru" : "Edit Ruang"}
               </h2>
@@ -256,7 +256,10 @@ export default function AdminRooms() {
                 <X className="w-6 h-6" />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form
+              onSubmit={handleSubmit}
+              className="p-6 space-y-4 overflow-y-auto flex-1"
+            >
               {errorMsg && (
                 <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-medium">
                   {errorMsg}
@@ -282,7 +285,7 @@ export default function AdminRooms() {
                 <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
                   <MapPin className="w-4 h-4" /> Pilih Lokasi Ruang
                 </label>
-                <MapPicker
+                <InteractiveMapPicker
                   initialLat={parseFloat(formData.latitude) || -6.2}
                   initialLong={parseFloat(formData.longitude) || 106.8}
                   onLocationSelect={(lat, long) => {

@@ -10,15 +10,20 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Public routes that don't require authentication
-    const publicPaths = ["/login", "/register"];
+    const publicPaths = ["/login", "/register", "/landing"];
 
     // Check if current path is public
-    const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
+    const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
 
     // Get token from localStorage
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-    console.log("🔐 AuthGuard Check:", { pathname, hasToken: !!token, isPublicPath });
+    console.log("🔐 AuthGuard Check:", {
+      pathname,
+      hasToken: !!token,
+      isPublicPath,
+    });
 
     // If on public path, allow access immediately
     if (isPublicPath) {
@@ -40,8 +45,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [pathname, router]);
 
   // Show loader only while checking (not on public paths)
-  const publicPaths = ["/login", "/register"];
-  const isPublicPath = publicPaths.some(path => pathname.startsWith(path));
+  const publicPaths = ["/login", "/register", "/landing"];
+  const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
 
   if (isChecking && !isPublicPath) {
     return (
