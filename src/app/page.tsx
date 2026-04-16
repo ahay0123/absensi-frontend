@@ -295,10 +295,13 @@ export default function Dashboard() {
               return (
                 <div
                   key={schedule.id}
-                  className={`transition-all duration-500 rounded-[2rem] p-5 border ${isActive
-                      ? "bg-indigo-600 border-indigo-600 shadow-xl shadow-indigo-200 text-white scale-[1.02] z-10 relative"
-                      : "bg-white border-slate-100 text-slate-800"
-                    } ${isPast ? "opacity-40 grayscale" : "opacity-100"}`}
+                  className={`transition-all duration-500 rounded-[2rem] p-5 border ${
+                    schedule.attendance_record?.status?.includes('Alpa')
+                      ? "bg-red-50 border-red-200 text-red-900 shadow-lg shadow-red-50"
+                      : isActive
+                        ? "bg-indigo-600 border-indigo-600 shadow-xl shadow-indigo-200 text-white scale-[1.02] z-10 relative"
+                        : "bg-white border-slate-100 text-slate-800"
+                    } ${isPast && !schedule.attendance_record?.status?.includes('Alpa') ? "opacity-40 grayscale" : "opacity-100"}`}
                 >
                   <div className="flex items-center gap-4">
                     <div
@@ -317,11 +320,17 @@ export default function Dashboard() {
                             className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isActive ? "text-indigo-100" : "text-slate-400"
                               }`}
                           >
-                            {isActive
-                              ? " Sedang Berlangsung"
-                              : isPast
-                                ? "Selesai"
-                                : "Mendatang"}
+                            {schedule.attendance_record?.status?.includes('Alpa')
+                              ? "❌ Alpa"
+                              : schedule.attendance_status === 'checked_out' 
+                                ? "✅ Selesai" 
+                                : schedule.attendance_status === 'checked_in'
+                                  ? "⏳ Sudah Check-In"
+                                  : isActive 
+                                    ? "Sedang Berlangsung"
+                                    : isPast
+                                      ? "Belum Absen"
+                                      : "Mendatang"}
                           </p>
                           <h4 className="font-bold text-sm sm:text-base truncate">
                             {schedule.subject?.name || "Mata Pelajaran"}
@@ -330,7 +339,6 @@ export default function Dashboard() {
                         <div
                           className={`text-right shrink-0 ${isActive ? "text-white" : "text-slate-400"}`}
                         >
-                          {/* Menampilkan jam tanpa detik agar UI tetap bersih (07:00) */}
                           <p className="text-xs font-bold leading-none">
                             {schedule.start_time.substring(0, 5)} -{" "}
                             {schedule.end_time.substring(0, 5)}
@@ -343,19 +351,21 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {isActive && (
+                  {(isActive || schedule.attendance_status === 'checked_in') && 
+                    schedule.attendance_status !== 'checked_out' && 
+                    !schedule.attendance_record?.status?.includes('Alpa') && (
                     <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
                       <div className="flex items-center gap-2">
                         <Clock className="w-3 h-3 text-indigo-100" />
                         <span className="text-[10px] font-medium text-indigo-100">
-                          Waktunya Mengajar
+                          {schedule.attendance_status === 'checked_in' ? "Menunggu Waktu Check-Out" : "Waktunya Mengajar"}
                         </span>
                       </div>
                       <Link
                         href={`/presensi-guru/${schedule.id}`}
                         className="bg-white text-indigo-600 text-[10px] font-bold px-4 py-2 rounded-xl shadow-sm active:scale-90 transition-all"
                       >
-                        Mulai Absensi
+                        {schedule.attendance_status === 'checked_in' ? "Lanjutkan Check-Out" : "Mulai Absensi"}
                       </Link>
                     </div>
                   )}

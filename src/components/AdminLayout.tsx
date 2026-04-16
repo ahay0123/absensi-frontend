@@ -15,6 +15,9 @@ import {
   X,
   QrCode as QrCodeIcon,
   Star,
+  Coins,
+  Gift,
+  TrendingUp,
 } from "lucide-react";
 import { getUser, isAdmin, logout } from "@/lib/auth";
 
@@ -48,6 +51,17 @@ export default function AdminLayout({
       name: "Indikator Penilaian",
       href: "/admin/assessment-categories",
       icon: Star,
+    },
+    { name: "Aturan Poin", href: "/admin/point-rules", icon: Coins },
+    {
+      name: "Marketplace Token",
+      href: "/admin/flexibility-marketplace",
+      icon: Gift,
+    },
+    {
+      name: "Analitik Integritas",
+      href: "/admin/leaderboard",
+      icon: TrendingUp,
     },
     { name: "Profil Sekolah", href: "/admin/school-profile", icon: Settings },
   ];

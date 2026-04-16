@@ -62,10 +62,20 @@ export default function AbsensiPage() {
       try {
         console.log("📚 Fetching schedule data for ID:", scheduleId);
         const response = await api.get(`/schedules/${scheduleId}`);
-        setSchedule(response.data.schedule);
+        const scheduleData = response.data.schedule;
+        setSchedule(scheduleData);
 
-        // Check if already checked-in
-        // TODO: Fetch attendance status from backend
+        // Check if already checked-in from backend status
+        if (scheduleData.attendance_status === 'checked_in') {
+          setCheckInStatus(true);
+          setAttendanceType("check_out");
+          console.log("ℹ️ User already checked-in, switching to check-out mode");
+        } else if (scheduleData.attendance_status === 'checked_out') {
+          setCheckInStatus(true);
+          setCanCheckOut(false);
+          showAlert("success", "Anda sudah menyelesaikan absensi untuk jadwal ini.");
+          setTimeout(() => router.push("/"), 2000);
+        }
         console.log("✅ Schedule loaded:", response.data);
       } catch (err) {
         console.error("❌ Error loading schedule:", err);
@@ -252,7 +262,21 @@ export default function AbsensiPage() {
         headers: { "Content-Type": "multipart/form-data" },
       });
       console.log("✅ Attendance submitted:", response.data);
-      showAlert("success", response.data.message);
+      
+      const resData = response.data;
+      const pointsNotif = resData.data?.points_notif;
+      
+      // Construct a rich message if integrity notifications are present
+      let finalMessage = resData.message;
+      if (pointsNotif) {
+          if (pointsNotif.token_applied) {
+              finalMessage += ` 🛡️ ${pointsNotif.message}`;
+          } else if (pointsNotif.points_changed !== 0) {
+              finalMessage += ` 💰 ${pointsNotif.message}`;
+          }
+      }
+
+      showAlert("success", finalMessage);
 
       // Update state after successful check-in
       if (attendanceType === "check_in") {

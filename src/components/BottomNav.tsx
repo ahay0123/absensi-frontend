@@ -1,5 +1,13 @@
 "use client";
-import { Home, History, BarChart2, User, Scan, FileText } from "lucide-react";
+import {
+  Home,
+  History,
+  BarChart2,
+  User,
+  Scan,
+  FileText,
+  Coins,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -14,7 +22,7 @@ export default function BottomNav() {
   const navs = [
     { name: "Home", icon: Home, path: "/" },
     { name: "History", icon: History, path: "/history" },
-    { name: "Absen Manual", icon: FileText, path: "/absen-manual" },
+    { name: "Point", icon: Coins, path: "/point/wallet" },
     { name: "Stats", icon: BarChart2, path: "/stats" },
     { name: "Profile", icon: User, path: "/profile" },
   ];
@@ -63,7 +71,7 @@ export default function BottomNav() {
         })}
 
         {/* Floating Scan Button */}
-        <button
+        {/* <button
           onClick={handleScanClick}
           className="absolute -top-10 left-1/2 -translate-x-1/2 w-20 h-20 bg-indigo-600 rounded-full border-[8px] border-slate-50 flex items-center justify-center shadow-lg shadow-indigo-200 active:scale-90 transition-all"
         >
@@ -73,7 +81,7 @@ export default function BottomNav() {
               Absen
             </span>
           </div>
-        </button>
+        </button> */}
       </div>
     </>
   );
