@@ -27,6 +27,7 @@ export default function AdminEditMarketplaceItemPage() {
     item_name: "",
     point_cost: 0,
     stock_limit: null as number | null,
+    protection_type: "" as string,
     is_active: true,
   });
 
@@ -40,6 +41,7 @@ export default function AdminEditMarketplaceItemPage() {
           item_name: result.item_name,
           point_cost: result.point_cost,
           stock_limit: result.stock_limit,
+          protection_type: result.protection_type || "",
           is_active: result.is_active,
         });
       } catch (err: any) {
@@ -74,6 +76,7 @@ export default function AdminEditMarketplaceItemPage() {
         item_name: formData.item_name,
         point_cost: formData.point_cost,
         stock_limit: formData.stock_limit,
+        protection_type: formData.protection_type || null,
         is_active: formData.is_active,
       };
 
@@ -237,6 +240,28 @@ export default function AdminEditMarketplaceItemPage() {
               />
               <p className="text-xs text-slate-500">
                 Jumlah maksimal yang bisa ditukar atau kosongkan untuk unlimited
+              </p>
+            </div>
+
+            {/* Protection Type */}
+            <div className="space-y-2">
+              <label className="block text-sm font-bold text-slate-900">
+                Jenis Proteksi
+              </label>
+              <select
+                value={formData.protection_type}
+                onChange={(e) =>
+                  setFormData({ ...formData, protection_type: e.target.value })
+                }
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={isSaving}
+              >
+                <option value="">Bukan Item Proteksi (Voucher/Barang)</option>
+                <option value="lateness">Proteksi Keterlambatan</option>
+                <option value="absence">Proteksi Alpa/Tidak Hadir</option>
+              </select>
+              <p className="text-xs text-slate-500">
+                Item ini akan memproteksi rule sesuai kategori yang dipilih
               </p>
             </div>
 

@@ -16,6 +16,7 @@ import {
 import BottomNav from "@/components/BottomNav";
 import Link from "next/link";
 import api from "@/lib/axios";
+import Alert, { useAlert } from "@/components/Alert";
 
 interface UserLocation {
   latitude: number;
@@ -26,6 +27,7 @@ interface UserLocation {
 export default function Dashboard() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { alert, showAlert } = useAlert();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [isInRadius, setIsInRadius] = useState<boolean | null>(null);
@@ -117,13 +119,25 @@ export default function Dashboard() {
       hasFetched.current = true;
 
       try {
-        // Tambahkan timestamp agar browser tidak menyimpan cache (selalu ambil data terbaru)
+        // Tambahkan timestamp agar browser tidak menyimpan cache
         const response = await api.get(
           `/dashboard-data?t=${new Date().getTime()}`,
         );
-        // Log untuk debug di console browser (F12)
         console.log("Response Backend:", response.data);
         setData(response.data);
+
+        // ✅ HANDLE GLOBAL ALERTS
+        if (response.data.integrity_alerts && response.data.integrity_alerts.length > 0) {
+            response.data.integrity_alerts.forEach((alert: any, index: number) => {
+                // Show alerts with a slight delay between them
+                setTimeout(() => {
+                    showAlert(
+                        alert.points_changed < 0 ? "warning" : "success", 
+                        alert.message
+                    );
+                }, index * 500);
+            });
+        }
       } catch (err) {
         console.error("Gagal mengambil data dashboard", err);
       } finally {
@@ -175,6 +189,7 @@ export default function Dashboard() {
 
   return (
     <main className="min-h-screen bg-slate-50 pb-32">
+      {alert && <Alert type={alert.type} message={alert.message} />}
       {/* --- HEADER --- */}
       <div className="p-6 flex justify-between items-center">
         <div className="flex items-center gap-3">

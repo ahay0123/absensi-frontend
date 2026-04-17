@@ -22,6 +22,7 @@ export default function AdminCreateMarketplaceItemPage() {
     item_name: "",
     point_cost: 0,
     stock_limit: null as number | null,
+    protection_type: "" as string,
     is_active: true,
   });
 
@@ -47,6 +48,7 @@ export default function AdminCreateMarketplaceItemPage() {
         item_name: formData.item_name,
         point_cost: formData.point_cost,
         stock_limit: formData.stock_limit,
+        protection_type: formData.protection_type || null,
         is_active: formData.is_active,
       };
 
@@ -101,7 +103,7 @@ export default function AdminCreateMarketplaceItemPage() {
             <Alert
               type="success"
               message="Item telah berhasil dibuat. Redirecting..."
-              onClose={() => {}}
+              onClose={() => { }}
               duration={0}
             />
           </div>
@@ -177,6 +179,29 @@ export default function AdminCreateMarketplaceItemPage() {
               />
               <p className="text-xs text-slate-500">
                 Jumlah maksimal yang bisa ditukar atau kosongkan untuk unlimited
+              </p>
+            </div>
+
+            {/* Protection Type */}
+            <div className="space-y-2">
+              <label className="block text-sm font-bold text-slate-900">
+                Jenis Proteksi (Opsional)
+              </label>
+              <select
+                value={formData.protection_type}
+                onChange={(e) =>
+                  setFormData({ ...formData, protection_type: e.target.value })
+                }
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={isLoading}
+              >
+                <option value="">Bukan Item Proteksi (Voucher/Barang)</option>
+                <option value="lateness">Proteksi Keterlambatan</option>
+                <option value="absence">Proteksi Alpa/Tidak Hadir</option>
+                <option value="early_arrival">Bonus Kedatangan Awal</option>
+              </select>
+              <p className="text-xs text-slate-500">
+                Tentukan rule mana yang akan diabaikan jika token ini digunakan
               </p>
             </div>
 

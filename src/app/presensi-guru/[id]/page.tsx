@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import api from "@/lib/axios";
 import Alert, { useAlert } from "@/components/Alert";
+import { useMarketplace } from "@/hooks/useMarketplace";
+import { ShieldCheck } from "lucide-react";
 
 interface Schedule {
   id: number;
@@ -51,6 +53,9 @@ export default function AbsensiPage() {
   const [canCheckOut, setCanCheckOut] = useState<boolean>(false);
   const [remainingTime, setRemainingTime] = useState<string>("");
   const { alert, showAlert, hideAlert } = useAlert();
+
+  const { myTokens } = useMarketplace();
+  const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -142,6 +147,22 @@ export default function AbsensiPage() {
       );
     }
   }, []);
+
+  // Mencari token perlindungan otomatis jika tersedia
+  useEffect(() => {
+    if (myTokens?.available && myTokens.available.length > 0) {
+      // Cari token yang berhubungan dengan keterlambatan
+      const protectionToken = myTokens.available.find(t => 
+        t.item_name.toLowerCase().includes("terlambat") || 
+        t.item_name.toLowerCase().includes("latenes")
+      );
+      
+      if (protectionToken) {
+        console.log("🛡️ Protection token found:", protectionToken.item_name);
+        setSelectedTokenId(protectionToken.id);
+      }
+    }
+  }, [myTokens]);
 
   // Initialize QR Scanner when step changes to 2
   useEffect(() => {
@@ -256,6 +277,12 @@ export default function AbsensiPage() {
     formData.append("lat_check", location.lat.toString());
     formData.append("long_check", location.long.toString());
     formData.append("gps_accuracy", location.accuracy.toString());
+    
+    // Kirim token_id jika ada untuk memproteksi poin
+    if (selectedTokenId) {
+      formData.append("token_id", String(selectedTokenId));
+      console.log("🛡️ Applying token ID:", selectedTokenId);
+    }
 
     try {
       const response = await api.post("/test-absen", formData, {
@@ -264,15 +291,28 @@ export default function AbsensiPage() {
       console.log("✅ Attendance submitted:", response.data);
       
       const resData = response.data;
-      const pointsNotif = resData.data?.points_notif;
+      
+      // ✅ Lebih robust: Cek di root atau di dalam .data
+      const pointsNotif = resData.points_notif || resData.data?.points_notif;
       
       // Construct a rich message if integrity notifications are present
-      let finalMessage = resData.message;
+      let finalMessage = resData.message || "Absensi berhasil";
+      
       if (pointsNotif) {
-          if (pointsNotif.token_applied) {
-              finalMessage += ` 🛡️ ${pointsNotif.message}`;
-          } else if (pointsNotif.points_changed !== 0) {
-              finalMessage += ` 💰 ${pointsNotif.message}`;
+          // Jika pointsNotif adalah string langsung
+          if (typeof pointsNotif === 'string') {
+              finalMessage += ` 💰 ${pointsNotif}`;
+          } 
+          // Jika pointsNotif adalah object
+          else {
+              const msg = pointsNotif.message || pointsNotif.text || "";
+              if (msg) {
+                  if (pointsNotif.token_applied) {
+                      finalMessage += ` 🛡️ ${msg}`;
+                  } else {
+                      finalMessage += ` 💰 ${msg}`;
+                  }
+              }
           }
       }
 
@@ -446,8 +486,31 @@ export default function AbsensiPage() {
               </p>
               <button
                 onClick={takeSelfie}
-                className="mx-auto block w-16 h-16 bg-white border-4 border-indigo-600 rounded-full shadow-lg active:scale-90 transition-all"
+                disabled={submitting}
+                className={`mx-auto block w-16 h-16 bg-white border-4 border-indigo-600 rounded-full shadow-lg active:scale-90 transition-all ${
+                  submitting ? "opacity-50 cursor-not-allowed" : ""
+                }`}
               />
+              
+              {/* Token Protection Indicator */}
+              {selectedTokenId && (
+                <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                      <ShieldCheck className="w-6 h-6 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-green-800 uppercase tracking-wider">Perlindungan Aktif</p>
+                      <p className="text-sm text-green-700 font-medium">
+                        {myTokens?.available.find(t => t.id === selectedTokenId)?.item_name}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="bg-green-600 text-white text-[10px] px-2 py-1 rounded-full font-bold">
+                    OTOMATIS
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
