@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import {
-  Bell,
   MapPin,
   BookOpen,
   Clock,
@@ -10,7 +9,6 @@ import {
   Info,
   BarChart2,
   FileText,
-  Syringe,
   Loader2,
 } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
@@ -47,9 +45,9 @@ export default function Dashboard() {
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c; // jarak dalam meter
   };
@@ -96,20 +94,23 @@ export default function Dashboard() {
 
   useEffect(() => {
     // 0. Cek role — redirect kepala sekolah / admin ke halaman mereka
-    const userStr = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+    const userStr =
+      typeof window !== "undefined" ? localStorage.getItem("user") : null;
     if (userStr) {
       try {
         const userObj = JSON.parse(userStr);
-        const rawRole = userObj?.role || '';
-        const role = rawRole.toLowerCase().replace(/[\s_]+/g, '-');
-        if (role === 'kepala-sekolah' || role === 'kepsek') {
-          window.location.href = '/kepala-sekolah';
+        const rawRole = userObj?.role || "";
+        const role = rawRole.toLowerCase().replace(/[\s_]+/g, "-");
+        if (role === "kepala-sekolah" || role === "kepsek") {
+          window.location.href = "/kepala-sekolah";
           return;
-        } else if (role === 'admin') {
-          window.location.href = '/admin';
+        } else if (role === "admin") {
+          window.location.href = "/admin";
           return;
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     // 1. Ambil data dari API (hanya sekali)
@@ -127,16 +128,21 @@ export default function Dashboard() {
         setData(response.data);
 
         // ✅ HANDLE GLOBAL ALERTS
-        if (response.data.integrity_alerts && response.data.integrity_alerts.length > 0) {
-            response.data.integrity_alerts.forEach((alert: any, index: number) => {
-                // Show alerts with a slight delay between them
-                setTimeout(() => {
-                    showAlert(
-                        alert.points_changed < 0 ? "warning" : "success", 
-                        alert.message
-                    );
-                }, index * 500);
-            });
+        if (
+          response.data.integrity_alerts &&
+          response.data.integrity_alerts.length > 0
+        ) {
+          response.data.integrity_alerts.forEach(
+            (alert: any, index: number) => {
+              // Show alerts with a slight delay between them
+              setTimeout(() => {
+                showAlert(
+                  alert.points_changed < 0 ? "warning" : "success",
+                  alert.message,
+                );
+              }, index * 500);
+            },
+          );
         }
       } catch (err) {
         console.error("Gagal mengambil data dashboard", err);
@@ -215,12 +221,6 @@ export default function Dashboard() {
             </h1>
           </div>
         </div>
-        <button className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-100 relative active:scale-90 transition-all">
-          <Bell className="w-5 h-5 text-slate-600" />
-          {data?.stats?.pending_leaves > 0 && (
-            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-          )}
-        </button>
       </div>
 
       {/* --- LIVE LOCATION CARD --- */}
@@ -229,12 +229,14 @@ export default function Dashboard() {
           <div className="space-y-2 flex-1">
             <div className="flex items-center gap-2">
               <div
-                className={`w-2 h-2 ${isInRadius ? "bg-green-500 animate-pulse" : "bg-red-500"
-                  } rounded-full`}
+                className={`w-2 h-2 ${
+                  isInRadius ? "bg-green-500 animate-pulse" : "bg-red-500"
+                } rounded-full`}
               ></div>
               <span
-                className={`text-[10px] font-bold uppercase tracking-widest ${isInRadius ? "text-green-500" : "text-red-500"
-                  }`}
+                className={`text-[10px] font-bold uppercase tracking-widest ${
+                  isInRadius ? "text-green-500" : "text-red-500"
+                }`}
               >
                 {isInRadius === null
                   ? "Checking..."
@@ -266,20 +268,22 @@ export default function Dashboard() {
           </div>
           <button
             onClick={requestLocation}
-            className={`w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center transition-all active:scale-90 ${isInRadius
+            className={`w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center transition-all active:scale-90 ${
+              isInRadius
                 ? "bg-green-50"
                 : isInRadius === null
                   ? "bg-slate-100"
                   : "bg-red-50"
-              }`}
+            }`}
           >
             <MapPin
-              className={`w-8 h-8 ${isInRadius
+              className={`w-8 h-8 ${
+                isInRadius
                   ? "text-green-500"
                   : isInRadius === null
                     ? "text-slate-300"
                     : "text-red-500"
-                }`}
+              }`}
             />
           </button>
         </div>
@@ -311,17 +315,18 @@ export default function Dashboard() {
                 <div
                   key={schedule.id}
                   className={`transition-all duration-500 rounded-[2rem] p-5 border ${
-                    schedule.attendance_record?.status?.includes('Alpa')
+                    schedule.attendance_record?.status?.includes("Alpa")
                       ? "bg-red-50 border-red-200 text-red-900 shadow-lg shadow-red-50"
                       : isActive
                         ? "bg-indigo-600 border-indigo-600 shadow-xl shadow-indigo-200 text-white scale-[1.02] z-10 relative"
                         : "bg-white border-slate-100 text-slate-800"
-                    } ${isPast && !schedule.attendance_record?.status?.includes('Alpa') ? "opacity-40 grayscale" : "opacity-100"}`}
+                  } ${isPast && !schedule.attendance_record?.status?.includes("Alpa") ? "opacity-40 grayscale" : "opacity-100"}`}
                 >
                   <div className="flex items-center gap-4">
                     <div
-                      className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${isActive ? "bg-white/20 shadow-inner" : "bg-indigo-50"
-                        }`}
+                      className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                        isActive ? "bg-white/20 shadow-inner" : "bg-indigo-50"
+                      }`}
                     >
                       <BookOpen
                         className={`w-6 h-6 ${isActive ? "text-white" : "text-indigo-600"}`}
@@ -332,16 +337,19 @@ export default function Dashboard() {
                       <div className="flex justify-between items-start gap-2">
                         <div className="truncate">
                           <p
-                            className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isActive ? "text-indigo-100" : "text-slate-400"
-                              }`}
+                            className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${
+                              isActive ? "text-indigo-100" : "text-slate-400"
+                            }`}
                           >
-                            {schedule.attendance_record?.status?.includes('Alpa')
+                            {schedule.attendance_record?.status?.includes(
+                              "Alpa",
+                            )
                               ? "❌ Alpa"
-                              : schedule.attendance_status === 'checked_out' 
-                                ? "✅ Selesai" 
-                                : schedule.attendance_status === 'checked_in'
+                              : schedule.attendance_status === "checked_out"
+                                ? "✅ Selesai"
+                                : schedule.attendance_status === "checked_in"
                                   ? "⏳ Sudah Check-In"
-                                  : isActive 
+                                  : isActive
                                     ? "Sedang Berlangsung"
                                     : isPast
                                       ? "Belum Absen"
@@ -366,24 +374,28 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {(isActive || schedule.attendance_status === 'checked_in') && 
-                    schedule.attendance_status !== 'checked_out' && 
-                    !schedule.attendance_record?.status?.includes('Alpa') && (
-                    <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-3 h-3 text-indigo-100" />
-                        <span className="text-[10px] font-medium text-indigo-100">
-                          {schedule.attendance_status === 'checked_in' ? "Menunggu Waktu Check-Out" : "Waktunya Mengajar"}
-                        </span>
+                  {(isActive || schedule.attendance_status === "checked_in") &&
+                    schedule.attendance_status !== "checked_out" &&
+                    !schedule.attendance_record?.status?.includes("Alpa") && (
+                      <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-3 h-3 text-indigo-100" />
+                          <span className="text-[10px] font-medium text-indigo-100">
+                            {schedule.attendance_status === "checked_in"
+                              ? "Menunggu Waktu Check-Out"
+                              : "Waktunya Mengajar"}
+                          </span>
+                        </div>
+                        <Link
+                          href={`/presensi-guru/${schedule.id}`}
+                          className="bg-white text-indigo-600 text-[10px] font-bold px-4 py-2 rounded-xl shadow-sm active:scale-90 transition-all"
+                        >
+                          {schedule.attendance_status === "checked_in"
+                            ? "Lanjutkan Check-Out"
+                            : "Mulai Absensi"}
+                        </Link>
                       </div>
-                      <Link
-                        href={`/presensi-guru/${schedule.id}`}
-                        className="bg-white text-indigo-600 text-[10px] font-bold px-4 py-2 rounded-xl shadow-sm active:scale-90 transition-all"
-                      >
-                        {schedule.attendance_status === 'checked_in' ? "Lanjutkan Check-Out" : "Mulai Absensi"}
-                      </Link>
-                    </div>
-                  )}
+                    )}
                 </div>
               );
             })
@@ -433,7 +445,7 @@ export default function Dashboard() {
       {/* --- LAYANAN GURU --- */}
       <div className="px-6 mb-8">
         <h3 className="font-bold text-slate-800 text-xl mb-4">Layanan Guru</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <Link
             href="/izin"
             className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm active:scale-95 active:shadow-none transition-all flex flex-col gap-3"
@@ -450,19 +462,6 @@ export default function Dashboard() {
               </p>
             </div>
           </Link>
-          <button className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm active:scale-95 opacity-60 transition-all flex flex-col gap-3">
-            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center">
-              <Syringe className="text-emerald-500 w-6 h-6" />
-            </div>
-            <div>
-              <h4 className="font-bold text-slate-800 text-sm leading-none">
-                Info Kesehatan
-              </h4>
-              <p className="text-slate-400 text-[9px] mt-1 italic">
-                Update Segera
-              </p>
-            </div>
-          </button>
         </div>
       </div>
 

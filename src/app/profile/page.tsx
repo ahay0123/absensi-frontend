@@ -2,24 +2,15 @@
 import { useState, useEffect, useRef } from "react";
 import {
   LogOut,
-  Settings,
   Shield,
   User,
   ChevronRight,
-  Bell,
   X,
   Eye,
   EyeOff,
   Loader2,
-  Camera,
   Mail,
   BadgeCheck,
-  Briefcase,
-  CheckCircle,
-  BellOff,
-  BellRing,
-  Sun,
-  Moon,
 } from "lucide-react";
 import api from "@/lib/axios";
 import Alert, { useAlert } from "@/components/Alert";
@@ -148,8 +139,6 @@ function PasswordInput({
 export default function ProfilePage() {
   const [user, setUser] = useState<UserData>({});
   const [activeSheet, setActiveSheet] = useState<string | null>(null);
-  const [notifEnabled, setNotifEnabled] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
   const { alert, showAlert, hideAlert } = useAlert();
 
   // Change password states
@@ -163,12 +152,6 @@ export default function ProfilePage() {
     try {
       const stored = localStorage.getItem("user");
       if (stored) setUser(JSON.parse(stored));
-
-      const savedNotif = localStorage.getItem("notif_enabled");
-      if (savedNotif !== null) setNotifEnabled(savedNotif === "true");
-
-      const savedDark = localStorage.getItem("dark_mode");
-      if (savedDark !== null) setDarkMode(savedDark === "true");
     } catch {
       /* ignore */
     }
@@ -187,19 +170,6 @@ export default function ProfilePage() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     window.location.href = "/login";
-  };
-
-  // ── Toggle Notifikasi ──────────────────────────────────
-  const handleToggleNotif = (val: boolean) => {
-    setNotifEnabled(val);
-    localStorage.setItem("notif_enabled", String(val));
-  };
-
-  // ── Toggle Dark Mode ───────────────────────────────────
-  const handleToggleDark = (val: boolean) => {
-    setDarkMode(val);
-    localStorage.setItem("dark_mode", String(val));
-    window.dispatchEvent(new Event('darkModeToggled'));
   };
 
   // ── Ganti Password ─────────────────────────────────────
@@ -239,25 +209,11 @@ export default function ProfilePage() {
       sheet: "info",
     },
     {
-      name: "Notifikasi",
-      icon: notifEnabled ? BellRing : BellOff,
-      color: "text-blue-500",
-      bg: "bg-blue-50",
-      sheet: "notif",
-    },
-    {
       name: "Keamanan Akun",
       icon: Shield,
       color: "text-emerald-500",
       bg: "bg-emerald-50",
       sheet: "security",
-    },
-    {
-      name: "Pengaturan",
-      icon: Settings,
-      color: "text-slate-500",
-      bg: "bg-slate-50",
-      sheet: "settings",
     },
   ];
 
@@ -293,11 +249,6 @@ export default function ProfilePage() {
         <p className="text-slate-400 text-sm mt-1 font-medium">
           NIP: {user?.nip || "-"}
         </p>
-        {user?.jabatan && (
-          <span className="inline-block mt-2 px-3 py-1 bg-indigo-50 text-indigo-600 text-xs font-bold rounded-full">
-            {user.jabatan}
-          </span>
-        )}
       </div>
 
       {/* ── Menu List ──────────────────────────────────── */}
@@ -341,61 +292,6 @@ export default function ProfilePage() {
           <InfoRow icon={User} label="Nama Lengkap" value={user?.name || "-"} />
           <InfoRow icon={Mail} label="Email" value={user?.email || "-"} />
           <InfoRow icon={BadgeCheck} label="NIP" value={user?.nip || "-"} />
-          <InfoRow
-            icon={Briefcase}
-            label="Jabatan"
-            value={user?.jabatan || "-"}
-          />
-        </div>
-      </BottomSheet>
-
-      {/* Sheet: Notifikasi */}
-      <BottomSheet
-        open={activeSheet === "notif"}
-        onClose={closeSheet}
-        title="Pusat Notifikasi"
-      >
-        <div className="space-y-6 pb-6">
-          <ToggleRow
-            icon={notifEnabled ? BellRing : BellOff}
-            iconColor={notifEnabled ? "text-blue-500" : "text-slate-400"}
-            iconBg={notifEnabled ? "bg-blue-50" : "bg-slate-100"}
-            label="Notifikasi Aplikasi"
-            description="Terima pengingat jadwal & status absensi"
-            value={notifEnabled}
-            onChange={handleToggleNotif}
-          />
-
-          <div className="pt-2 border-t border-slate-100">
-            <h3 className="text-sm font-bold text-slate-800 mb-4 px-1">Notifikasi Terbaru</h3>
-            {!notifEnabled ? (
-              <div className="text-center py-8">
-                <BellOff className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-                <p className="text-sm font-medium text-slate-400">Notifikasi saat ini dinonaktifkan.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <NotificationItem
-                  title="Absensi Berhasil"
-                  desc="Anda telah melakukan absensi untuk kelas X MIPA 1 (07:15)."
-                  time="Hari ini, 07:12"
-                  type="success"
-                />
-                <NotificationItem
-                  title="Pengajuan Izin Disetujui"
-                  desc="Pengajuan Izin (Sakit) Anda untuk besok telah disetujui."
-                  time="Kemarin, 14:30"
-                  type="info"
-                />
-                <NotificationItem
-                  title="Penting: Jadwal Baru"
-                  desc="Ada perubahan jadwal mengajar Anda di minggu ini. Silakan cek menu Jadwal."
-                  time="Senin, 09:00"
-                  type="warning"
-                />
-              </div>
-            )}
-          </div>
         </div>
       </BottomSheet>
 
@@ -457,28 +353,6 @@ export default function ProfilePage() {
         </form>
       </BottomSheet>
 
-      {/* Sheet: Pengaturan */}
-      <BottomSheet
-        open={activeSheet === "settings"}
-        onClose={closeSheet}
-        title="Pengaturan"
-      >
-        <div className="space-y-4 pb-6">
-          <ToggleRow
-            icon={darkMode ? Moon : Sun}
-            iconColor={darkMode ? "text-indigo-600" : "text-amber-500"}
-            iconBg={darkMode ? "bg-indigo-50" : "bg-amber-50"}
-            label="Mode Gelap"
-            description="Aktifkan tampilan dark mode (segera hadir)"
-            value={darkMode}
-            onChange={handleToggleDark}
-          />
-          <div className="bg-slate-50 rounded-2xl p-4 text-xs text-slate-400 text-center">
-            Versi Aplikasi: <strong className="text-slate-600">1.0.0</strong>
-          </div>
-        </div>
-      </BottomSheet>
-
       <BottomNav />
     </main>
   );
@@ -504,77 +378,6 @@ function InfoRow({
           {label}
         </p>
         <p className="text-sm font-bold text-slate-800 truncate">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-function ToggleRow({
-  icon: Icon,
-  iconColor,
-  iconBg,
-  label,
-  description,
-  value,
-  onChange,
-}: {
-  icon: any;
-  iconColor: string;
-  iconBg: string;
-  label: string;
-  description: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl">
-      <div
-        className={`w-10 h-10 ${iconBg} rounded-xl flex items-center justify-center flex-shrink-0`}
-      >
-        <Icon className={`w-5 h-5 ${iconColor}`} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold text-slate-800">{label}</p>
-        <p className="text-[10px] text-slate-400 mt-0.5">{description}</p>
-      </div>
-      <button
-        onClick={() => onChange(!value)}
-        className={`relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0 ${value ? "bg-indigo-600" : "bg-slate-200"}`}
-      >
-        <div
-          className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300 ${value ? "translate-x-7" : "translate-x-1"}`}
-        />
-      </button>
-    </div>
-  );
-}
-
-function NotificationItem({ title, desc, time, type }: { title: string, desc: string, time: string, type: 'success' | 'info' | 'warning' }) {
-  const getIcon = () => {
-    switch (type) {
-      case 'success': return <CheckCircle className="w-5 h-5 text-emerald-500" />;
-      case 'info': return <Bell className="w-5 h-5 text-blue-500" />;
-      case 'warning': return <Shield className="w-5 h-5 text-amber-500" />;
-    }
-  };
-
-  const getBg = () => {
-    switch (type) {
-      case 'success': return 'bg-emerald-50';
-      case 'info': return 'bg-blue-50';
-      case 'warning': return 'bg-amber-50';
-    }
-  };
-
-  return (
-    <div className="flex gap-4 items-start p-4 hover:bg-slate-50 border border-slate-100 rounded-2xl transition-colors cursor-pointer">
-      <div className={`w-10 h-10 shrink-0 flex items-center justify-center rounded-xl ${getBg()}`}>
-        {getIcon()}
-      </div>
-      <div>
-        <h4 className="text-sm font-bold text-slate-800">{title}</h4>
-        <p className="text-xs text-slate-500 mt-1 leading-relaxed">{desc}</p>
-        <p className="text-[10px] font-bold text-slate-400 mt-2">{time}</p>
       </div>
     </div>
   );

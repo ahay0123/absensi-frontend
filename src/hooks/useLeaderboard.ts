@@ -9,12 +9,12 @@ import { useState, useEffect } from "react";
 import {
   getIntegrityLeaderboard,
   getAnalyticsSummary,
-  LeaderboardResponse,
   AnalyticsSummary,
 } from "@/services/adminAnalyticsService";
 import { LeaderboardEntry } from "@/components/IntegrityLeaderboard";
 
 export function useLeaderboard(initialMonth?: number, initialYear?: number) {
+  // Ambil bulan sekarang (1-12)
   const [month, setMonth] = useState(initialMonth || new Date().getMonth() + 1);
   const [year, setYear] = useState(initialYear || new Date().getFullYear());
 
@@ -26,65 +26,54 @@ export function useLeaderboard(initialMonth?: number, initialYear?: number) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchLeaderboard = async (m?: number, y?: number) => {
+  // Fungsi fetch sekarang murni menggunakan nilai dari state
+  const fetchLeaderboard = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const targetMonth = m || month;
-      const targetYear = y || year;
-
+      // Gunakan langsung dari state month dan year
       const [leaderboardData, summaryData] = await Promise.all([
         getIntegrityLeaderboard({
-          month: targetMonth,
-          year: targetYear,
+          month: month,
+          year: year,
           limit: 10,
         }),
-        getAnalyticsSummary(targetMonth, targetYear),
+        getAnalyticsSummary(month, year),
       ]);
 
       setTopUsers(leaderboardData.top_users);
       setBottomUsers(leaderboardData.bottom_users);
       setSummary(summaryData);
       setPeriod(leaderboardData.period);
-
-      if (m || y) {
-        setMonth(targetMonth);
-        setYear(targetYear);
-      }
     } catch (err: any) {
       setError(err.message || "Gagal mengambil data leaderboard");
-      console.error("Leaderboard fetch error:", err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Fetch on mount
+  // Re-fetch otomatis setiap kali month atau year berubah
   useEffect(() => {
     fetchLeaderboard();
-  }, []);
+  }, [month, year]);
 
+  // Fungsi changeMonth sekarang hanya bertugas mengubah state
   const changeMonth = (newMonth: number, newYear: number) => {
-    fetchLeaderboard(newMonth, newYear);
+    setMonth(newMonth);
+    setYear(newYear);
   };
 
   return {
-    // Data
     topUsers,
     bottomUsers,
     summary,
     period,
-
-    // State
     month,
     year,
     isLoading,
     error,
-
-    // Actions
-    fetchLeaderboard,
     changeMonth,
-    refetch: () => fetchLeaderboard(month, year),
+    refetch: fetchLeaderboard,
   };
 }

@@ -30,11 +30,7 @@ export async function getIntegrityLeaderboard(
     const response = await axios.get<LeaderboardResponse>(
       "/admin/analytics/leaderboard",
       {
-        params: {
-          month: params?.month || new Date().getMonth() + 1,
-          year: params?.year || new Date().getFullYear(),
-          limit: params?.limit || 10,
-        },
+        params: params
       },
     );
     return response.data;

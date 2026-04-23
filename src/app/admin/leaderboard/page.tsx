@@ -7,7 +7,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Download, RefreshCw } from "lucide-react";
+import { AlertCircle, Download, RefreshCw, ArrowLeft } from "lucide-react";
 import IntegrityLeaderboard, {
   IntegrityLeaderboardSkeleton,
 } from "@/components/IntegrityLeaderboard";
@@ -72,6 +72,13 @@ export default function AdminLeaderboardPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="space-y-2 mb-8">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-slate-600 hover:text-slate-900 mb-4 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-sm font-semibold">Kembali</span>
+          </button>
           <h1 className="text-3xl sm:text-4xl font-black text-slate-900">
             📊 Analitik Integritas
           </h1>
